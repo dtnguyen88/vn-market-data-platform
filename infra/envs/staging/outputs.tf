@@ -53,3 +53,11 @@ output "writer_urls" {
   }
   description = "Map of stream to parquet-writer Cloud Run service URL."
 }
+
+output "batch_jobs" {
+  value = {
+    eod       = module.batch_eod.id
+    reference = module.batch_reference.id
+  }
+  description = "Map of batch Cloud Run Job names to fully-qualified resource IDs."
+}

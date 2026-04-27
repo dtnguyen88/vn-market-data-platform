@@ -378,3 +378,43 @@ resource "google_storage_bucket_object" "symbols" {
   source       = "${path.module}/../../symbols/${each.value}"
   content_type = "application/json"
 }
+
+# ─── Batch ingestion Cloud Run Jobs ──────────────────────────────────────────
+
+module "batch_eod" {
+  source                = "../../modules/cloud-run-job"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "batch-ingester-eod"
+  image                 = "${local.artifact_registry_prefix}/batch-eod:latest"
+  service_account_email = module.service_accounts.emails["batch-ingester"]
+  task_count            = 1
+  parallelism           = 1
+  task_timeout          = "1800s"
+  max_retries           = 3
+  memory                = "2Gi"
+  cpu                   = "1"
+  env_vars = {
+    GCP_PROJECT_ID = var.project_id
+    ENV            = "prod"
+  }
+}
+
+module "batch_reference" {
+  source                = "../../modules/cloud-run-job"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "batch-ingester-reference"
+  image                 = "${local.artifact_registry_prefix}/batch-reference:latest"
+  service_account_email = module.service_accounts.emails["batch-ingester"]
+  task_count            = 1
+  parallelism           = 1
+  task_timeout          = "600s"
+  max_retries           = 3
+  memory                = "1Gi"
+  cpu                   = "1"
+  env_vars = {
+    GCP_PROJECT_ID = var.project_id
+    ENV            = "prod"
+  }
+}
