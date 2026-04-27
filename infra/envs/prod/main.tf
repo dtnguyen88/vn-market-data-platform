@@ -34,3 +34,11 @@ resource "google_storage_bucket_iam_member" "connection_reader" {
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${google_bigquery_connection.gcs.cloud_resource[0].service_account_id}"
 }
+
+resource "google_storage_bucket_object" "calendar" {
+  for_each     = fileset("${path.module}/../../calendar", "vn-trading-days-*.json")
+  bucket       = module.lake_bucket.name
+  name         = "_ops/calendar/${replace(each.value, "vn-trading-days-", "")}"
+  source       = "${path.module}/../../calendar/${each.value}"
+  content_type = "application/json"
+}
