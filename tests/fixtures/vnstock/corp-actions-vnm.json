@@ -1,0 +1,4 @@
+[
+  {"ex_date": "2026-05-15", "action_type": "dividend_cash", "ratio": null, "amount": 1500, "record_date": "2026-05-16", "payment_date": "2026-06-01"},
+  {"ex_date": "2026-08-10", "action_type": "split", "ratio": 0.1, "amount": null, "record_date": "2026-08-11", "payment_date": null}
+]

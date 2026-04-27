@@ -1,0 +1,4 @@
+[
+  {"as_of_date": "2024-09-30", "year": 2024, "quarter": 3, "pe": 15.2, "pb": 2.1, "eps": 5800, "bvps": 41000, "roe": 14.5, "roa": 8.2, "debt_to_equity": 0.6, "market_cap": 184000000000000, "revenue": 60000000000000, "net_income": 8400000000000, "total_assets": 50000000000000, "total_equity": 32000000000000},
+  {"as_of_date": "2024-06-30", "year": 2024, "quarter": 2, "pe": 14.8, "pb": 2.0, "eps": 5700, "bvps": 40500, "roe": 14.2, "roa": 8.0, "debt_to_equity": 0.61, "market_cap": 178000000000000, "revenue": 58000000000000, "net_income": 8200000000000, "total_assets": 49500000000000, "total_equity": 31500000000000}
+]
