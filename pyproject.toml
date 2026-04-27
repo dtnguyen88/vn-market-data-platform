@@ -17,6 +17,8 @@ dependencies = [
   "polars>=1.0",
   "fastapi>=0.110",
   "uvicorn[standard]>=0.30",
+  "vnstock>=3.0",
+  "tenacity>=8.2",
 ]
 
 [project.optional-dependencies]
@@ -26,6 +28,7 @@ dev = [
   "pytest-mock>=3.12",
   "ruff>=0.4",
   "pre-commit>=3.7",
+  "responses>=0.25",
 ]
 
 [tool.ruff]
