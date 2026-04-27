@@ -1,0 +1,7 @@
+[
+  {"S": "VNM", "P": 850000, "V": 100, "T": 1714180800000, "MT": "ATO", "TID": "T1", "SEQ": 1, "EX": "HOSE", "SD": "B"},
+  {"S": "VIC", "P": 410000, "V": 200, "T": 1714180801000, "MT": "continuous", "TID": "T2", "SEQ": 2, "EX": "HOSE", "SD": "S"},
+  {"S": "VHM", "P": 380000, "V": 150, "T": 1714180802000, "MT": "continuous", "TID": "T3", "SEQ": 3, "EX": "HOSE", "SD": "B"},
+  {"S": "VN30F1M", "P": 13200, "V": 5, "T": 1714180803000, "MT": "continuous", "TID": "T4", "SEQ": 4, "EX": "HNX-DERIV", "SD": "B"},
+  {"S": "FPT", "P": 1320000, "V": 50, "T": 1714180804000, "MT": "ATC", "TID": "T5", "SEQ": 5, "EX": "HOSE", "SD": "?"}
+]
