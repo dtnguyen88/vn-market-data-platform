@@ -34,3 +34,10 @@ markers = [
   "contract: contract tests (real external sources)",
   "e2e: end-to-end smoke tests",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shared"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
