@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["year", "trading_days", "holidays", "sessions"],
+  "properties": {
+    "year": { "type": "integer", "minimum": 2020 },
+    "trading_days": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+    },
+    "holidays": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["date", "name"],
+        "properties": {
+          "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+          "name": { "type": "string" }
+        }
+      }
+    },
+    "sessions": {
+      "type": "object",
+      "required": ["equity", "derivative"],
+      "properties": {
+        "equity":     { "type": "array" },
+        "derivative": { "type": "array" }
+      }
+    }
+  }
+}
