@@ -1,0 +1,4 @@
+[
+  {"symbol": "VNM", "name": "Vinamilk", "exchange": "HOSE", "asset_class": "equity", "sector_l1": "Consumer Staples", "sector_l2": "Food", "industry": "Dairy", "listed_date": "2006-01-19", "status": "active", "lot_size": 100, "tick_size": 100, "foreign_room_pct": 49.0},
+  {"symbol": "VIC", "name": "Vingroup", "exchange": "HOSE", "asset_class": "equity", "sector_l1": "Real Estate", "sector_l2": "Diversified", "industry": "Conglomerate", "listed_date": "2007-09-19", "status": "active", "lot_size": 100, "tick_size": 100, "foreign_room_pct": 49.0}
+]

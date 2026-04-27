@@ -1,0 +1,4 @@
+[
+  {"symbol": "VN30F2607", "underlying_index": "VN30", "expiry_date": "2026-07-16", "contract_size": 100000, "tick_size": 1, "margin_pct": 12.5},
+  {"symbol": "VN30F2608", "underlying_index": "VN30", "expiry_date": "2026-08-20", "contract_size": 100000, "tick_size": 1, "margin_pct": 12.5}
+]
