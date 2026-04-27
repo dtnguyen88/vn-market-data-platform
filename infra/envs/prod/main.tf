@@ -368,3 +368,13 @@ resource "google_cloud_run_v2_service_iam_member" "pubsub_invoker_indices" {
   role     = "roles/run.invoker"
   member   = "serviceAccount:${module.service_accounts.emails["parquet-writer"]}"
 }
+
+# Per-shard symbol manifests for publishers to subscribe to.
+# Source-of-truth in repo (infra/symbols/); operator regenerates when universe changes.
+resource "google_storage_bucket_object" "symbols" {
+  for_each     = fileset("${path.module}/../../symbols", "symbols-shard-*.json")
+  bucket       = module.lake_bucket.name
+  name         = "_ops/reference/${each.value}"
+  source       = "${path.module}/../../symbols/${each.value}"
+  content_type = "application/json"
+}
