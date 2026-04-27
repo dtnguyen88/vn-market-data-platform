@@ -1,0 +1,12 @@
+[sqlfluff]
+dialect = bigquery
+templater = jinja
+# Match project ruff line-length (100). SQL comments can be verbose.
+max_line_length = 100
+# RF04: partition column names (date, hour, quarter, snapshot) are reserved words
+# in standard SQL but are valid BigQuery column identifiers. Exclude this rule.
+exclude_rules = RF04
+
+[sqlfluff:templater:jinja:context]
+project_id = vn-market-platform-staging
+env = staging

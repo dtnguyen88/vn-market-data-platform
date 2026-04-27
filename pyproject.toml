@@ -45,4 +45,5 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "jsonschema>=4.26.0",
+    "sqlfluff>=4.1.0",
 ]
