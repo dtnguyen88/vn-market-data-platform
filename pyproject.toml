@@ -1,0 +1,36 @@
+[project]
+name = "vn-market-data-platform"
+version = "0.1.0"
+description = "GCP-hosted Vietnam market data lakehouse for quant research"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "pytest-mock>=3.12",
+  "ruff>=0.4",
+  "pre-commit>=3.7",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "S", "C4", "RUF"]
+ignore = ["S101"]  # allow assert in tests
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+markers = [
+  "unit: unit tests (no GCP)",
+  "integration: integration tests (require GCP test project)",
+  "contract: contract tests (real external sources)",
+  "e2e: end-to-end smoke tests",
+]
