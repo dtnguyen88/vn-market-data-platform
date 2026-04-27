@@ -54,7 +54,7 @@ markers = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/shared", "src/publisher", "src/writers"]
+packages = ["src/shared", "src/publisher", "src/writers", "src/batch"]
 
 [build-system]
 requires = ["hatchling"]
