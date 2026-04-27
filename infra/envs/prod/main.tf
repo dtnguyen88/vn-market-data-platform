@@ -42,3 +42,27 @@ resource "google_storage_bucket_object" "calendar" {
   source       = "${path.module}/../../calendar/${each.value}"
   content_type = "application/json"
 }
+
+module "topic_ticks" {
+  source     = "../../modules/pubsub-topic"
+  project_id = var.project_id
+  name       = "market-ticks"
+}
+
+module "topic_quotes_l1" {
+  source     = "../../modules/pubsub-topic"
+  project_id = var.project_id
+  name       = "market-quotes-l1"
+}
+
+module "topic_quotes_l2" {
+  source     = "../../modules/pubsub-topic"
+  project_id = var.project_id
+  name       = "market-quotes-l2"
+}
+
+module "topic_indices" {
+  source     = "../../modules/pubsub-topic"
+  project_id = var.project_id
+  name       = "market-indices"
+}
