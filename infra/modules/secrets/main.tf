@@ -16,7 +16,7 @@ resource "google_secret_manager_secret" "secret" {
   replication {
     user_managed {
       replicas {
-        location = "asia-southeast1"
+        location = var.region
       }
     }
   }

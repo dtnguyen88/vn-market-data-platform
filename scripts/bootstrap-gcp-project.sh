@@ -10,6 +10,11 @@ BILLING_ACCOUNT="${2:?billing_account_id required}"
 ENV="${3:?env (staging|prod|test) required}"
 REGION="asia-southeast1"
 
+if [[ ! "${ENV}" =~ ^(staging|prod|test)$ ]]; then
+  echo "ERROR: env must be one of: staging, prod, test (got: ${ENV})" >&2
+  exit 1
+fi
+
 echo "==> Bootstrapping GCP project: ${PROJECT_ID} (env=${ENV})"
 
 # 1. Create project if not exists
@@ -18,9 +23,16 @@ if ! gcloud projects describe "${PROJECT_ID}" &>/dev/null; then
   gcloud projects create "${PROJECT_ID}" --name="VN Market Platform ${ENV}"
 fi
 
-# 2. Link billing
-echo "==> Linking billing account..."
-gcloud billing projects link "${PROJECT_ID}" --billing-account="${BILLING_ACCOUNT}"
+# 2. Link billing (idempotent: skip if already linked to the same account)
+echo "==> Checking billing link..."
+CURRENT_BILLING=$(gcloud billing projects describe "${PROJECT_ID}" --format='value(billingAccountName)' 2>/dev/null || echo "")
+EXPECTED_BILLING="billingAccounts/${BILLING_ACCOUNT}"
+if [[ "${CURRENT_BILLING}" != "${EXPECTED_BILLING}" ]]; then
+  echo "==> Linking billing account ${BILLING_ACCOUNT}..."
+  gcloud billing projects link "${PROJECT_ID}" --billing-account="${BILLING_ACCOUNT}"
+else
+  echo "==> Billing already linked to ${BILLING_ACCOUNT}, skipping."
+fi
 
 # 3. Set project + region defaults
 gcloud config set project "${PROJECT_ID}"
@@ -67,15 +79,15 @@ if ! gcloud iam service-accounts describe "${TF_SA}" &>/dev/null; then
     --display-name="Terraform IaC Service Account"
 fi
 
-# 7. Grant terraform-sa project-level admin (for IaC; tighten later)
-echo "==> Granting roles to terraform-sa..."
-for role in roles/owner roles/iam.securityAdmin roles/storage.admin; do
-  gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
-    --member="serviceAccount:${TF_SA}" \
-    --role="${role}" \
-    --condition=None \
-    --quiet
-done
+# 7. Grant terraform-sa project owner (sufficient for IaC; tighten in Phase 11)
+# roles/owner already supersedes roles/iam.securityAdmin and roles/storage.admin,
+# so we don't grant those redundantly.
+echo "==> Granting roles/owner to terraform-sa..."
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member="serviceAccount:${TF_SA}" \
+  --role="roles/owner" \
+  --condition=None \
+  --quiet
 
 echo "==> Bootstrap complete."
 echo "==> Next: cd infra/envs/${ENV} && terraform init && terraform plan"
