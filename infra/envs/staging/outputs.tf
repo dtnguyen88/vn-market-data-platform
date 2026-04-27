@@ -43,3 +43,13 @@ output "pubsub_subscriptions" {
   }
   description = "Map of stream → subscription ID."
 }
+
+output "writer_urls" {
+  value = {
+    ticks   = module.writer_ticks.url
+    l1      = module.writer_quotes_l1.url
+    l2      = module.writer_quotes_l2.url
+    indices = module.writer_indices.url
+  }
+  description = "Map of stream to parquet-writer Cloud Run service URL."
+}
