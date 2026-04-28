@@ -66,3 +66,28 @@ output "curate_job_id" {
   value       = module.curate_job.id
   description = "Curate Cloud Run Job resource ID."
 }
+
+output "workflows" {
+  value = {
+    shared_check_trading_day = module.wf_shared_check_trading_day.id
+    eod_pipeline             = module.wf_eod_pipeline.id
+    intraday_coverage_check  = module.wf_intraday_coverage_check.id
+    reference_refresh        = module.wf_reference_refresh.id
+    curate_fallback          = module.wf_curate_fallback.id
+    calendar_refresh_yearly  = module.wf_calendar_refresh_yearly.id
+    monthly_cost_report      = module.wf_monthly_cost_report.id
+  }
+  description = "Map of workflow short name to fully-qualified resource ID."
+}
+
+output "schedulers" {
+  value = {
+    eod_pipeline            = module.sched_eod_pipeline.id
+    intraday_coverage_check = module.sched_intraday_coverage_check.id
+    reference_refresh       = module.sched_reference_refresh.id
+    curate_fallback         = module.sched_curate_fallback.id
+    calendar_refresh_yearly = module.sched_calendar_refresh_yearly.id
+    monthly_cost_report     = module.sched_monthly_cost_report.id
+  }
+  description = "Map of scheduler short name to job resource ID."
+}

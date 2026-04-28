@@ -72,6 +72,7 @@ locals {
   publisher_image          = "${local.artifact_registry_prefix}/publisher:latest"
   writers_image            = "${local.artifact_registry_prefix}/writers:latest"
   symbols_url_prefix       = "gs://${module.lake_bucket.name}/_ops/reference"
+  workflows_path           = "${path.module}/../../workflows"
 }
 
 # ─── 4 publisher shards (stateful WS consumers, min=max=1) ───────────────────
@@ -438,4 +439,157 @@ module "curate_job" {
     GCP_PROJECT_ID = var.project_id
     ENV            = "prod"
   }
+}
+
+# ─── Workflows ────────────────────────────────────────────────────────────────
+
+module "wf_shared_check_trading_day" {
+  source                = "../../modules/workflow"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "_shared-check-trading-day"
+  description           = "Reusable: check if a date is a VN trading day."
+  source_file_path      = "${local.workflows_path}/_shared-check-trading-day.yaml"
+  service_account_email = module.service_accounts.emails["workflows"]
+  labels                = { env = "prod" }
+}
+
+module "wf_eod_pipeline" {
+  source                = "../../modules/workflow"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "eod-pipeline"
+  description           = "EOD: batch-eod → parallel curate → telegram."
+  source_file_path      = "${local.workflows_path}/eod-pipeline.yaml"
+  service_account_email = module.service_accounts.emails["workflows"]
+  labels                = { env = "prod" }
+}
+
+module "wf_intraday_coverage_check" {
+  source                = "../../modules/workflow"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "intraday-coverage-check"
+  description           = "Every 5min during trading hours: ingest receipt coverage."
+  source_file_path      = "${local.workflows_path}/intraday-coverage-check.yaml"
+  service_account_email = module.service_accounts.emails["workflows"]
+  labels                = { env = "prod" }
+}
+
+module "wf_reference_refresh" {
+  source                = "../../modules/workflow"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "reference-refresh"
+  description           = "Daily ticker + futures master refresh."
+  source_file_path      = "${local.workflows_path}/reference-refresh.yaml"
+  service_account_email = module.service_accounts.emails["workflows"]
+  labels                = { env = "prod" }
+}
+
+module "wf_curate_fallback" {
+  source                = "../../modules/workflow"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "curate-fallback"
+  description           = "Re-runs curate streams idempotently as EOD safety net."
+  source_file_path      = "${local.workflows_path}/curate-fallback.yaml"
+  service_account_email = module.service_accounts.emails["workflows"]
+  labels                = { env = "prod" }
+}
+
+module "wf_calendar_refresh_yearly" {
+  source                = "../../modules/workflow"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "calendar-refresh-yearly"
+  description           = "Verifies next year's calendar JSON is in GCS."
+  source_file_path      = "${local.workflows_path}/calendar-refresh-yearly.yaml"
+  service_account_email = module.service_accounts.emails["workflows"]
+  labels                = { env = "prod" }
+}
+
+module "wf_monthly_cost_report" {
+  source                = "../../modules/workflow"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "monthly-cost-report"
+  description           = "Triggers cost-report job; posts to Telegram."
+  source_file_path      = "${local.workflows_path}/monthly-cost-report.yaml"
+  service_account_email = module.service_accounts.emails["workflows"]
+  labels                = { env = "prod" }
+}
+
+# ─── Schedulers (6 — none for the shared sub-workflow) ───────────────────────
+
+module "sched_eod_pipeline" {
+  source                = "../../modules/scheduler"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "eod-pipeline-cron"
+  description           = "Trigger eod-pipeline 16:00 ICT weekdays."
+  schedule              = "0 16 * * 1-5"
+  target_workflow_id    = module.wf_eod_pipeline.id
+  service_account_email = module.service_accounts.emails["workflows"]
+  request_body          = jsonencode({ env = "prod" })
+}
+
+module "sched_intraday_coverage_check" {
+  source                = "../../modules/scheduler"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "intraday-coverage-check-cron"
+  description           = "Every 5 min during trading hours."
+  schedule              = "*/5 9-15 * * 1-5"
+  target_workflow_id    = module.wf_intraday_coverage_check.id
+  service_account_email = module.service_accounts.emails["workflows"]
+  request_body          = jsonencode({ env = "prod" })
+}
+
+module "sched_reference_refresh" {
+  source                = "../../modules/scheduler"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "reference-refresh-cron"
+  description           = "06:00 ICT weekdays."
+  schedule              = "0 6 * * 1-5"
+  target_workflow_id    = module.wf_reference_refresh.id
+  service_account_email = module.service_accounts.emails["workflows"]
+  request_body          = jsonencode({ env = "prod" })
+}
+
+module "sched_curate_fallback" {
+  source                = "../../modules/scheduler"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "curate-fallback-cron"
+  description           = "17:00 ICT weekdays."
+  schedule              = "0 17 * * 1-5"
+  target_workflow_id    = module.wf_curate_fallback.id
+  service_account_email = module.service_accounts.emails["workflows"]
+  request_body          = jsonencode({ env = "prod" })
+}
+
+module "sched_calendar_refresh_yearly" {
+  source                = "../../modules/scheduler"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "calendar-refresh-yearly-cron"
+  description           = "Dec 1 09:00 ICT yearly."
+  schedule              = "0 9 1 12 *"
+  target_workflow_id    = module.wf_calendar_refresh_yearly.id
+  service_account_email = module.service_accounts.emails["workflows"]
+  request_body          = jsonencode({ env = "prod" })
+}
+
+module "sched_monthly_cost_report" {
+  source                = "../../modules/scheduler"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "monthly-cost-report-cron"
+  description           = "1st of month 09:00 ICT."
+  schedule              = "0 9 1 * *"
+  target_workflow_id    = module.wf_monthly_cost_report.id
+  service_account_email = module.service_accounts.emails["workflows"]
+  request_body          = jsonencode({ env = "prod" })
 }
