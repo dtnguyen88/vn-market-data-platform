@@ -1,0 +1,226 @@
+# curate-fallback.yaml
+#
+# Curate fallback safety net. Run at 17:00 ICT on trading days.
+# Re-runs all 5 curate streams idempotently as a safety net for partial
+# EOD-pipeline failures. Full-overwrite semantics make this safe to re-run.
+#
+# Args:
+#   target_date: YYYY-MM-DD (default: today VN-local if not provided)
+#   env: staging | prod (default: staging)
+#
+# Flow:
+#   1. check_trading_day -> exit early if non-trading day
+#   2. parallel curate of 5 streams: ticks, quotes-l1, quotes-l2, indices, daily-ohlcv
+#   3. publish summary to platform-alerts
+#
+# Dependencies:
+#   - Sub-workflow _shared-check-trading-day deployed in same project/env.
+#   - Cloud Run Job: curate.
+#   - Pub/Sub topic platform-alerts (Phase 07 forward-ref).
+#
+# IAM requirements:
+#   workflows-sa must have:
+#     roles/run.invoker       on Cloud Run Jobs
+#     roles/pubsub.publisher  on platform-alerts topic
+#     roles/workflows.invoker on _shared-check-trading-day workflow
+
+main:
+  params: [args]
+  steps:
+    - init:
+        assign:
+          - target_date: ${default(map.get(args, "target_date"), "")}
+          - env: ${default(map.get(args, "env"), "staging")}
+          - project_id: ${"vn-market-platform-" + env}
+          - location: "asia-southeast1"
+          - alerts_topic: ${"projects/" + project_id + "/topics/platform-alerts"}
+
+    - default_date_if_empty:
+        switch:
+          - condition: ${target_date == ""}
+            steps:
+              - set_date_from_now:
+                  assign:
+                    - now_vn: ${time.format(sys.now(), "Asia/Ho_Chi_Minh")}
+                    - target_date: ${text.substring(now_vn, 0, 10)}
+
+    - check_trading_day:
+        try:
+          call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+          args:
+            workflow_id: "_shared-check-trading-day"
+            argument:
+              target_date: ${target_date}
+              env: ${env}
+          result: cal_result
+        except:
+          as: e
+          steps:
+            - log_calendar_failure:
+                call: sys.log
+                args:
+                  data: ${"calendar check failed " + json.encode_to_string(e)}
+                  severity: ERROR
+            - raise_calendar_error:
+                raise: ${e}
+
+    - skip_if_not_trading_day:
+        switch:
+          - condition: ${not cal_result.is_trading_day}
+            steps:
+              - return_skipped:
+                  return:
+                    status: "skipped"
+                    reason: "non-trading-day"
+                    target_date: ${target_date}
+
+    - parallel_curate:
+        try:
+          parallel:
+            shared: [target_date, env, project_id, location]
+            branches:
+              - curate_ticks:
+                  steps:
+                    - run_ticks:
+                        call: googleapis.run.v2.projects.locations.jobs.run
+                        args:
+                          name: ${"projects/" + project_id + "/locations/" + location + "/jobs/curate"}
+                          body:
+                            overrides:
+                              containerOverrides:
+                                - args:
+                                    - "--stream=ticks"
+                                    - ${"--date=" + target_date}
+                                  env:
+                                    - name: ENV
+                                      value: ${env}
+                                    - name: GCP_PROJECT_ID
+                                      value: ${project_id}
+              - curate_l1:
+                  steps:
+                    - run_l1:
+                        call: googleapis.run.v2.projects.locations.jobs.run
+                        args:
+                          name: ${"projects/" + project_id + "/locations/" + location + "/jobs/curate"}
+                          body:
+                            overrides:
+                              containerOverrides:
+                                - args:
+                                    - "--stream=quotes-l1"
+                                    - ${"--date=" + target_date}
+                                  env:
+                                    - name: ENV
+                                      value: ${env}
+                                    - name: GCP_PROJECT_ID
+                                      value: ${project_id}
+              - curate_l2:
+                  steps:
+                    - run_l2:
+                        call: googleapis.run.v2.projects.locations.jobs.run
+                        args:
+                          name: ${"projects/" + project_id + "/locations/" + location + "/jobs/curate"}
+                          body:
+                            overrides:
+                              containerOverrides:
+                                - args:
+                                    - "--stream=quotes-l2"
+                                    - ${"--date=" + target_date}
+                                  env:
+                                    - name: ENV
+                                      value: ${env}
+                                    - name: GCP_PROJECT_ID
+                                      value: ${project_id}
+              - curate_indices:
+                  steps:
+                    - run_indices:
+                        call: googleapis.run.v2.projects.locations.jobs.run
+                        args:
+                          name: ${"projects/" + project_id + "/locations/" + location + "/jobs/curate"}
+                          body:
+                            overrides:
+                              containerOverrides:
+                                - args:
+                                    - "--stream=indices"
+                                    - ${"--date=" + target_date}
+                                  env:
+                                    - name: ENV
+                                      value: ${env}
+                                    - name: GCP_PROJECT_ID
+                                      value: ${project_id}
+              - curate_daily:
+                  steps:
+                    - run_daily:
+                        call: googleapis.run.v2.projects.locations.jobs.run
+                        args:
+                          name: ${"projects/" + project_id + "/locations/" + location + "/jobs/curate"}
+                          body:
+                            overrides:
+                              containerOverrides:
+                                - args:
+                                    - "--stream=daily-ohlcv"
+                                    - ${"--date=" + target_date}
+                                  env:
+                                    - name: ENV
+                                      value: ${env}
+                                    - name: GCP_PROJECT_ID
+                                      value: ${project_id}
+        except:
+          as: e
+          steps:
+            - publish_curate_error:
+                try:
+                  call: googleapis.pubsub.v1.projects.topics.publish
+                  args:
+                    topic: ${alerts_topic}
+                    body:
+                      messages:
+                        - data: ${base64.encode(json.encode("curate-fallback ERROR parallel curate failed target_date=" + target_date + " env=" + env))}
+                          attributes:
+                            severity: "error"
+                            source: "curate-fallback"
+                            target_date: ${target_date}
+                            env: ${env}
+                except:
+                  as: pe
+                  steps:
+                    - log_publish_failure:
+                        call: sys.log
+                        args:
+                          data: ${"alert publish failed " + json.encode_to_string(pe)}
+                          severity: WARNING
+            - raise_curate_error:
+                raise: ${e}
+
+    - publish_summary:
+        try:
+          call: googleapis.pubsub.v1.projects.topics.publish
+          args:
+            topic: ${alerts_topic}
+            body:
+              messages:
+                - data: ${base64.encode(json.encode("curate-fallback SUCCESS target_date=" + target_date + " env=" + env + " streams=ticks,quotes-l1,quotes-l2,indices,daily-ohlcv"))}
+                  attributes:
+                    severity: "info"
+                    source: "curate-fallback"
+                    target_date: ${target_date}
+                    env: ${env}
+        except:
+          as: e
+          steps:
+            - log_summary_publish_failure:
+                call: sys.log
+                args:
+                  data: ${"summary publish failed platform-alerts topic not yet created Phase 07 dependency " + json.encode_to_string(e)}
+                  severity: WARNING
+
+    - return_ok:
+        return:
+          status: "ok"
+          target_date: ${target_date}
+          env: ${env}
+          streams_curated:
+            - ticks
+            - quotes-l1
+            - quotes-l2
+            - indices
+            - daily-ohlcv

@@ -1,0 +1,85 @@
+# monthly-cost-report.yaml
+#
+# Monthly cost report trigger. Run 1st of month 09:00 ICT.
+# Triggers cost-report Cloud Run Job (Phase 10 forward-ref) which computes
+# prior-month GCP spend and posts a Telegram-friendly summary directly.
+# This workflow only kicks off the job — reporting logic lives in the job.
+#
+# Args:
+#   env: staging | prod (default: staging)
+#
+# Dependencies:
+#   - Cloud Run Job: cost-report (Phase 10 forward-ref — will fail at runtime until deployed)
+#
+# IAM requirements:
+#   workflows-sa must have:
+#     roles/run.invoker on Cloud Run Jobs
+
+main:
+  params: [args]
+  steps:
+    - init:
+        assign:
+          - env: ${default(map.get(args, "env"), "staging")}
+          - project_id: ${"vn-market-platform-" + env}
+          - location: "asia-southeast1"
+          - alerts_topic: ${"projects/" + project_id + "/topics/platform-alerts"}
+
+    - run_cost_report:
+        try:
+          call: googleapis.run.v2.projects.locations.jobs.run
+          args:
+            name: ${"projects/" + project_id + "/locations/" + location + "/jobs/cost-report"}
+            body:
+              overrides:
+                containerOverrides:
+                  - args:
+                      - "--mode=monthly"
+                    env:
+                      - name: ENV
+                        value: ${env}
+                      - name: GCP_PROJECT_ID
+                        value: ${project_id}
+          result: cost_result
+        retry:
+          predicate: ${http.default_retry_predicate}
+          max_retries: 2
+          backoff:
+            initial_delay: 30
+            max_delay: 300
+            multiplier: 3
+        except:
+          as: e
+          steps:
+            - log_cost_error:
+                call: sys.log
+                args:
+                  data: ${"cost-report job failed " + json.encode_to_string(e)}
+                  severity: ERROR
+            - try_publish_error:
+                try:
+                  call: googleapis.pubsub.v1.projects.topics.publish
+                  args:
+                    topic: ${alerts_topic}
+                    body:
+                      messages:
+                        - data: ${base64.encode(json.encode("monthly-cost-report ERROR cost-report job failed env=" + env))}
+                          attributes:
+                            severity: "error"
+                            source: "monthly-cost-report"
+                            env: ${env}
+                except:
+                  as: pe
+                  steps:
+                    - swallow_publish_err:
+                        call: sys.log
+                        args:
+                          data: ${"alert publish failed " + json.encode_to_string(pe)}
+                          severity: WARNING
+            - raise_cost_error:
+                raise: ${e}
+
+    - return_ok:
+        return:
+          status: "ok"
+          env: ${env}

@@ -1,0 +1,150 @@
+# reference-refresh.yaml
+#
+# Reference data refresh. Run at 06:00 ICT on trading days.
+# Triggers batch-ingester-reference Cloud Run Job to refresh ticker master
+# and futures contracts from exchange sources.
+#
+# Args:
+#   target_date: YYYY-MM-DD (default: today VN-local if not provided)
+#   env: staging | prod (default: staging)
+#
+# Flow:
+#   1. check_trading_day -> exit early if non-trading day
+#   2. run_reference_job (with retry)
+#
+# Dependencies:
+#   - Sub-workflow _shared-check-trading-day deployed in same project/env.
+#   - Cloud Run Job: batch-ingester-reference.
+#
+# IAM requirements:
+#   workflows-sa must have:
+#     roles/run.invoker       on Cloud Run Jobs
+#     roles/workflows.invoker on _shared-check-trading-day workflow
+
+main:
+  params: [args]
+  steps:
+    - init:
+        assign:
+          - target_date: ${default(map.get(args, "target_date"), "")}
+          - env: ${default(map.get(args, "env"), "staging")}
+          - project_id: ${"vn-market-platform-" + env}
+          - location: "asia-southeast1"
+          - alerts_topic: ${"projects/" + project_id + "/topics/platform-alerts"}
+
+    - default_date_if_empty:
+        switch:
+          - condition: ${target_date == ""}
+            steps:
+              - set_date_from_now:
+                  assign:
+                    - now_vn: ${time.format(sys.now(), "Asia/Ho_Chi_Minh")}
+                    - target_date: ${text.substring(now_vn, 0, 10)}
+
+    - check_trading_day:
+        try:
+          call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+          args:
+            workflow_id: "_shared-check-trading-day"
+            argument:
+              target_date: ${target_date}
+              env: ${env}
+          result: cal_result
+        except:
+          as: e
+          steps:
+            - log_calendar_failure:
+                call: sys.log
+                args:
+                  data: ${"calendar check failed " + json.encode_to_string(e)}
+                  severity: ERROR
+            - raise_calendar_error:
+                raise: ${e}
+
+    - skip_if_not_trading_day:
+        switch:
+          - condition: ${not cal_result.is_trading_day}
+            steps:
+              - return_skipped:
+                  return:
+                    status: "skipped"
+                    reason: "non-trading-day"
+                    target_date: ${target_date}
+
+    - run_reference_job:
+        try:
+          call: googleapis.run.v2.projects.locations.jobs.run
+          args:
+            name: ${"projects/" + project_id + "/locations/" + location + "/jobs/batch-ingester-reference"}
+            body:
+              overrides:
+                containerOverrides:
+                  - env:
+                      - name: TARGET_DATE
+                        value: ${target_date}
+                      - name: ENV
+                        value: ${env}
+                      - name: GCP_PROJECT_ID
+                        value: ${project_id}
+          result: ref_result
+        retry:
+          predicate: ${http.default_retry_predicate}
+          max_retries: 3
+          backoff:
+            initial_delay: 30
+            max_delay: 600
+            multiplier: 5
+        except:
+          as: e
+          steps:
+            - publish_ref_error:
+                try:
+                  call: googleapis.pubsub.v1.projects.topics.publish
+                  args:
+                    topic: ${alerts_topic}
+                    body:
+                      messages:
+                        - data: ${base64.encode(json.encode("reference-refresh ERROR batch-ingester-reference failed target_date=" + target_date + " env=" + env))}
+                          attributes:
+                            severity: "error"
+                            source: "reference-refresh"
+                            target_date: ${target_date}
+                            env: ${env}
+                except:
+                  as: pe
+                  steps:
+                    - log_publish_failure:
+                        call: sys.log
+                        args:
+                          data: ${"alert publish failed " + json.encode_to_string(pe)}
+                          severity: WARNING
+            - raise_ref_error:
+                raise: ${e}
+
+    - publish_summary:
+        try:
+          call: googleapis.pubsub.v1.projects.topics.publish
+          args:
+            topic: ${alerts_topic}
+            body:
+              messages:
+                - data: ${base64.encode(json.encode("reference-refresh SUCCESS target_date=" + target_date + " env=" + env))}
+                  attributes:
+                    severity: "info"
+                    source: "reference-refresh"
+                    target_date: ${target_date}
+                    env: ${env}
+        except:
+          as: e
+          steps:
+            - log_summary_publish_failure:
+                call: sys.log
+                args:
+                  data: ${"summary publish failed platform-alerts topic not yet created Phase 07 dependency " + json.encode_to_string(e)}
+                  severity: WARNING
+
+    - return_ok:
+        return:
+          status: "ok"
+          target_date: ${target_date}
+          env: ${env}

@@ -1,0 +1,73 @@
+# intraday-coverage-check.yaml
+#
+# Intraday coverage monitor. Run every 5 min during trading hours (09:00-15:00 ICT weekdays).
+# Calls coverage-check Cloud Run Job (Phase 10 forward-ref).
+# Publishes alert if the job reports coverage < 95% or if the job itself fails.
+#
+# Args:
+#   env: staging | prod (default: staging)
+#
+# Dependencies:
+#   - Cloud Run Job: coverage-check (Phase 10 forward-ref — will fail at runtime until deployed)
+#   - Pub/Sub topic platform-alerts (Phase 07 forward-ref)
+#
+# IAM requirements:
+#   workflows-sa must have:
+#     roles/run.invoker       on Cloud Run Jobs
+#     roles/pubsub.publisher  on platform-alerts topic
+
+main:
+  params: [args]
+  steps:
+    - init:
+        assign:
+          - env: ${default(map.get(args, "env"), "staging")}
+          - project_id: ${"vn-market-platform-" + env}
+          - location: "asia-southeast1"
+          - alerts_topic: ${"projects/" + project_id + "/topics/platform-alerts"}
+
+    - run_coverage_check:
+        try:
+          call: googleapis.run.v2.projects.locations.jobs.run
+          args:
+            name: ${"projects/" + project_id + "/locations/" + location + "/jobs/coverage-check"}
+            body:
+              overrides:
+                containerOverrides:
+                  - env:
+                      - name: ENV
+                        value: ${env}
+          result: cov_result
+        except:
+          as: e
+          steps:
+            - log_cov_error:
+                call: sys.log
+                args:
+                  data: ${"coverage-check job failed " + json.encode_to_string(e)}
+                  severity: ERROR
+            - try_publish_error:
+                try:
+                  call: googleapis.pubsub.v1.projects.topics.publish
+                  args:
+                    topic: ${alerts_topic}
+                    body:
+                      messages:
+                        - data: ${base64.encode(json.encode("intraday-coverage-check failed env=" + env))}
+                          attributes:
+                            severity: "error"
+                            source: "intraday-coverage-check"
+                            env: ${env}
+                except:
+                  as: pe
+                  steps:
+                    - swallow_publish_err:
+                        call: sys.log
+                        args:
+                          data: ${"alert publish failed " + json.encode_to_string(pe)}
+                          severity: WARNING
+
+    - return_ok:
+        return:
+          status: "ok"
+          env: ${env}

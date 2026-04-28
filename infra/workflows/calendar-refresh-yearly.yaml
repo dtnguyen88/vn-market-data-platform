@@ -1,0 +1,107 @@
+# calendar-refresh-yearly.yaml
+#
+# Yearly calendar readiness check. Run Dec 1 09:00 ICT.
+# Verifies next year's holiday calendar JSON is present in GCS.
+# Posts a warning alert if the file is missing so operators can
+# upload it before Jan 1 trading begins.
+#
+# Args:
+#   env: staging | prod (default: staging)
+#
+# Calendar path checked:
+#   gs://vn-market-lake-{env}/_ops/calendar/{next_year}.json
+#
+# Dependencies:
+#   - Pub/Sub topic platform-alerts (Phase 07 forward-ref).
+#
+# IAM requirements:
+#   workflows-sa must have:
+#     roles/storage.objectViewer on the lake bucket
+#     roles/pubsub.publisher     on platform-alerts topic
+
+main:
+  params: [args]
+  steps:
+    - init:
+        assign:
+          - env: ${default(map.get(args, "env"), "staging")}
+          - project_id: ${"vn-market-platform-" + env}
+          - alerts_topic: ${"projects/" + project_id + "/topics/platform-alerts"}
+          - now_vn: ${time.format(sys.now(), "Asia/Ho_Chi_Minh")}
+          - this_year: ${int(text.substring(now_vn, 0, 4))}
+          - next_year: ${this_year + 1}
+          - bucket: ${"vn-market-lake-" + env}
+          - calendar_uri: ${"https://storage.googleapis.com/storage/v1/b/" + bucket + "/o/_ops%2Fcalendar%2F" + string(next_year) + ".json?alt=media"}
+
+    - check_next_year_calendar:
+        try:
+          call: http.get
+          args:
+            url: ${calendar_uri}
+            auth:
+              type: OAuth2
+              scopes:
+                - https://www.googleapis.com/auth/devstorage.read_only
+          result: cal_response
+        except:
+          as: e
+          steps:
+            - log_missing_calendar:
+                call: sys.log
+                args:
+                  data: ${"calendar-refresh-yearly next year calendar missing year=" + string(next_year) + " env=" + env}
+                  severity: WARNING
+            - alert_missing_calendar:
+                try:
+                  call: googleapis.pubsub.v1.projects.topics.publish
+                  args:
+                    topic: ${alerts_topic}
+                    body:
+                      messages:
+                        - data: ${base64.encode(json.encode("calendar-refresh-yearly next year " + string(next_year) + " calendar missing in env=" + env))}
+                          attributes:
+                            severity: "warning"
+                            source: "calendar-refresh-yearly"
+                            next_year: ${string(next_year)}
+                            env: ${env}
+                except:
+                  as: pe
+                  steps:
+                    - log_publish_fail:
+                        call: sys.log
+                        args:
+                          data: ${"alert publish failed " + json.encode_to_string(pe)}
+                          severity: WARNING
+            - return_missing:
+                return:
+                  status: "missing"
+                  next_year: ${next_year}
+                  env: ${env}
+
+    - publish_summary:
+        try:
+          call: googleapis.pubsub.v1.projects.topics.publish
+          args:
+            topic: ${alerts_topic}
+            body:
+              messages:
+                - data: ${base64.encode(json.encode("calendar-refresh-yearly OK next year " + string(next_year) + " calendar present env=" + env))}
+                  attributes:
+                    severity: "info"
+                    source: "calendar-refresh-yearly"
+                    next_year: ${string(next_year)}
+                    env: ${env}
+        except:
+          as: e
+          steps:
+            - log_summary_publish_failure:
+                call: sys.log
+                args:
+                  data: ${"summary publish failed platform-alerts topic not yet created Phase 07 dependency " + json.encode_to_string(e)}
+                  severity: WARNING
+
+    - return_ok:
+        return:
+          status: "ok"
+          next_year: ${next_year}
+          env: ${env}
