@@ -708,3 +708,24 @@ module "alert_subscription_ack_lag" {
   notification_channel_ids = [google_monitoring_notification_channel.platform_alerts.id]
   labels                   = { severity = "warning", source = "pubsub" }
 }
+
+# ─── Research App: Streamlit UI (IAM-protected via run.invoker grant) ─────────
+
+module "research_app" {
+  source                = "../../modules/cloud-run-service"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "research-app"
+  image                 = "${local.artifact_registry_prefix}/research-app:latest"
+  service_account_email = module.service_accounts.emails["research-app"]
+  min_instances         = 0
+  max_instances         = 3
+  memory                = "1Gi"
+  cpu                   = "1"
+  ingress               = "INGRESS_TRAFFIC_ALL"
+  port                  = 8080
+  env_vars = {
+    GCP_PROJECT_ID = var.project_id
+    ENV            = "staging"
+  }
+}

@@ -110,3 +110,8 @@ output "alert_policies" {
   }
   description = "Map of alert-policy short name to resource ID."
 }
+
+output "research_app_url" {
+  value       = module.research_app.url
+  description = "Streamlit research-app Cloud Run URL (IAM-protected)."
+}
