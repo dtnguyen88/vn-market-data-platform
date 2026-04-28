@@ -61,3 +61,8 @@ output "batch_jobs" {
   }
   description = "Map of batch Cloud Run Job names to fully-qualified resource IDs."
 }
+
+output "curate_job_id" {
+  value       = module.curate_job.id
+  description = "Curate Cloud Run Job resource ID."
+}

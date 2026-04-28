@@ -418,3 +418,24 @@ module "batch_reference" {
     ENV            = "prod"
   }
 }
+
+# ─── Curate Cloud Run Job ─────────────────────────────────────────────────────
+
+module "curate_job" {
+  source                = "../../modules/cloud-run-job"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "curate"
+  image                 = "${local.artifact_registry_prefix}/curate:latest"
+  service_account_email = module.service_accounts.emails["curate"]
+  task_count            = 1
+  parallelism           = 1
+  task_timeout          = "1800s" # 30 min
+  max_retries           = 3
+  memory                = "4Gi" # curate is memory-heavy (Polars in-memory ops)
+  cpu                   = "2"
+  env_vars = {
+    GCP_PROJECT_ID = var.project_id
+    ENV            = "prod"
+  }
+}
