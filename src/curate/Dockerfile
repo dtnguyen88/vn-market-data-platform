@@ -5,7 +5,7 @@ FROM python:3.12-slim AS builder
 WORKDIR /app
 RUN pip install --no-cache-dir uv
 COPY pyproject.toml uv.lock ./
-RUN uv export --no-dev --format requirements-txt > requirements.txt
+RUN uv export --no-dev --no-emit-workspace --no-hashes --format requirements-txt > requirements.txt
 
 FROM python:3.12-slim
 WORKDIR /app
