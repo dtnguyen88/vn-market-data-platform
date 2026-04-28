@@ -1,0 +1,19 @@
+# Cloud Build config for ops-cost-report image.
+# Triggered manually or via build-and-push.sh.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - asia-southeast1-docker.pkg.dev/$PROJECT_ID/vn-market/ops-cost-report:latest
+      - -t
+      - asia-southeast1-docker.pkg.dev/$PROJECT_ID/vn-market/ops-cost-report:$SHORT_SHA
+      - -f
+      - src/ops/cost_report/Dockerfile
+      - .
+images:
+  - asia-southeast1-docker.pkg.dev/$PROJECT_ID/vn-market/ops-cost-report:latest
+  - asia-southeast1-docker.pkg.dev/$PROJECT_ID/vn-market/ops-cost-report:$SHORT_SHA
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 600s

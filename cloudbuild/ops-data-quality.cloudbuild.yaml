@@ -1,0 +1,19 @@
+# Cloud Build config for ops-data-quality image.
+# Triggered manually or via build-and-push.sh.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - asia-southeast1-docker.pkg.dev/$PROJECT_ID/vn-market/ops-data-quality:latest
+      - -t
+      - asia-southeast1-docker.pkg.dev/$PROJECT_ID/vn-market/ops-data-quality:$SHORT_SHA
+      - -f
+      - src/ops/data_quality/Dockerfile
+      - .
+images:
+  - asia-southeast1-docker.pkg.dev/$PROJECT_ID/vn-market/ops-data-quality:latest
+  - asia-southeast1-docker.pkg.dev/$PROJECT_ID/vn-market/ops-data-quality:$SHORT_SHA
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 600s

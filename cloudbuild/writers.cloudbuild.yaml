@@ -1,0 +1,19 @@
+# Cloud Build config for writers image.
+# Triggered manually or via build-and-push.sh.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - asia-southeast1-docker.pkg.dev/$PROJECT_ID/vn-market/writers:latest
+      - -t
+      - asia-southeast1-docker.pkg.dev/$PROJECT_ID/vn-market/writers:$SHORT_SHA
+      - -f
+      - src/writers/Dockerfile
+      - .
+images:
+  - asia-southeast1-docker.pkg.dev/$PROJECT_ID/vn-market/writers:latest
+  - asia-southeast1-docker.pkg.dev/$PROJECT_ID/vn-market/writers:$SHORT_SHA
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 600s

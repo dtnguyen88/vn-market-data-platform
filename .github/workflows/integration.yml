@@ -1,0 +1,30 @@
+name: integration
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  id-token: write
+  contents: read
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER_TEST }}
+          service_account: ${{ secrets.WIF_SA_TEST }}
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-extras
+      - env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID_TEST }}
+          ENV: test
+        run: uv run pytest -m integration -v

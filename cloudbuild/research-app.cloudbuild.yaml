@@ -1,0 +1,19 @@
+# Cloud Build config for research-app image.
+# Triggered manually or via build-and-push.sh.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - asia-southeast1-docker.pkg.dev/$PROJECT_ID/vn-market/research-app:latest
+      - -t
+      - asia-southeast1-docker.pkg.dev/$PROJECT_ID/vn-market/research-app:$SHORT_SHA
+      - -f
+      - src/research_app/Dockerfile
+      - .
+images:
+  - asia-southeast1-docker.pkg.dev/$PROJECT_ID/vn-market/research-app:latest
+  - asia-southeast1-docker.pkg.dev/$PROJECT_ID/vn-market/research-app:$SHORT_SHA
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 600s
