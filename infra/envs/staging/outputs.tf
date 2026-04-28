@@ -131,3 +131,8 @@ output "monitoring_dashboard_id" {
   value       = module.monitoring_dashboard.id
   description = "vn-platform-ops Cloud Monitoring dashboard resource ID."
 }
+
+output "backfill_job_id" {
+  value       = module.backfill_job.id
+  description = "Backfill Cloud Run Job resource ID."
+}

@@ -796,6 +796,24 @@ module "monitoring_dashboard" {
   project_id = var.project_id
 }
 
+# ─── Backfill Cloud Run Job ───────────────────────────────────────────────────
+
+module "backfill_job" {
+  source                = "../../modules/cloud-run-job"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "backfill"
+  image                 = "${local.artifact_registry_prefix}/backfill:latest"
+  service_account_email = module.service_accounts.emails["batch-ingester"]
+  task_count            = 10
+  parallelism           = 10
+  task_timeout          = "3600s"
+  max_retries           = 1
+  memory                = "2Gi"
+  cpu                   = "1"
+  env_vars              = { GCP_PROJECT_ID = var.project_id, ENV = "staging" }
+}
+
 # ─── Research App: Streamlit UI (IAM-protected via run.invoker grant) ─────────
 
 module "research_app" {

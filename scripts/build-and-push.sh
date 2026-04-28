@@ -11,7 +11,8 @@ fi
 
 PROJECT_ID="vn-market-platform-${ENV}"
 SERVICES=(publisher writers batch-eod batch-reference curate alerter research-app
-          ops-cost-report ops-dlq-drain ops-dlq-replay ops-coverage-check ops-data-quality)
+          ops-cost-report ops-dlq-drain ops-dlq-replay ops-coverage-check ops-data-quality
+          backfill)
 
 for svc in "${SERVICES[@]}"; do
   echo "==> building ${svc}..."
