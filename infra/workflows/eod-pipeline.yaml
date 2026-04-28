@@ -1,0 +1,290 @@
+# eod-pipeline.yaml
+#
+# End-of-day pipeline. Run daily at 16:00 ICT (after HOSE close 15:00 + 60min buffer).
+#
+# Args (from scheduler):
+#   target_date: YYYY-MM-DD (default: today VN-local if not provided)
+#   env:         staging | prod
+#
+# Flow:
+#   1. check_trading_day -> exit early if non-trading day
+#   2. batch_eod_job (sequential)
+#   3. parallel curate of 5 streams: ticks, quotes-l1, quotes-l2, indices, daily-ohlcv
+#   4. publish telegram summary via platform-alerts Pub/Sub topic
+#
+# Error handling:
+#   Any step failure publishes severity=error alert then re-raises.
+#
+# Dependencies:
+#   - Sub-workflow _shared-check-trading-day deployed in same project/env.
+#   - Cloud Run Jobs: batch-ingester-eod, curate.
+#   - Pub/Sub topic platform-alerts -- created in Phase 07.
+#     Until then, publish_summary step will fail gracefully; all prior steps still succeed.
+#
+# IAM requirements:
+#   workflows-sa must have:
+#     roles/run.invoker         on Cloud Run Jobs
+#     roles/pubsub.publisher    on platform-alerts topic
+#     roles/workflows.invoker   on _shared-check-trading-day workflow
+
+main:
+  params: [args]
+  steps:
+    - init:
+        assign:
+          - target_date: ${default(map.get(args, "target_date"), "")}
+          - env: ${default(map.get(args, "env"), "staging")}
+          - project_id: ${"vn-market-platform-" + env}
+          - location: "asia-southeast1"
+          - alerts_topic: ${"projects/" + project_id + "/topics/platform-alerts"}
+
+    - default_target_date_if_empty:
+        switch:
+          - condition: ${target_date == ""}
+            steps:
+              - set_target_date_from_now:
+                  assign:
+                    - now_vn: ${time.format(sys.now(), "Asia/Ho_Chi_Minh")}
+                    - target_date: ${text.substring(now_vn, 0, 10)}
+
+    - check_trading_day:
+        try:
+          call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+          args:
+            workflow_id: "_shared-check-trading-day"
+            argument:
+              target_date: ${target_date}
+              env: ${env}
+          result: cal_result
+        except:
+          as: e
+          steps:
+            - log_calendar_failure:
+                call: sys.log
+                args:
+                  data: ${"calendar check failed " + json.encode_to_string(e)}
+                  severity: ERROR
+            - raise_calendar_error:
+                raise: ${e}
+
+    - skip_if_not_trading_day:
+        switch:
+          - condition: ${not cal_result.is_trading_day}
+            steps:
+              - log_holiday:
+                  call: sys.log
+                  args:
+                    data: ${"non-trading day skipping holiday=" + default(cal_result.holiday_name, "weekend")}
+                    severity: INFO
+              - return_holiday:
+                  return:
+                    status: "skipped"
+                    reason: "non-trading-day"
+                    target_date: ${target_date}
+                    holiday_name: ${default(cal_result.holiday_name, "weekend")}
+
+    - run_batch_eod:
+        try:
+          call: googleapis.run.v2.projects.locations.jobs.run
+          args:
+            name: ${"projects/" + project_id + "/locations/" + location + "/jobs/batch-ingester-eod"}
+            body:
+              overrides:
+                containerOverrides:
+                  - env:
+                      - name: TARGET_DATE
+                        value: ${target_date}
+                      - name: ENV
+                        value: ${env}
+                      - name: GCP_PROJECT_ID
+                        value: ${project_id}
+          result: batch_result
+        retry:
+          predicate: ${http.default_retry_predicate}
+          max_retries: 3
+          backoff:
+            initial_delay: 10
+            max_delay: 300
+            multiplier: 5
+        except:
+          as: e
+          steps:
+            - publish_batch_error:
+                try:
+                  call: googleapis.pubsub.v1.projects.topics.publish
+                  args:
+                    topic: ${alerts_topic}
+                    body:
+                      messages:
+                        - data: ${base64.encode(json.encode("eod-pipeline ERROR batch-ingester-eod failed target_date=" + target_date + " env=" + env))}
+                          attributes:
+                            severity: "error"
+                            source: "eod-pipeline"
+                            step: "batch-ingester-eod"
+                            target_date: ${target_date}
+                except:
+                  as: pub_err
+                  steps:
+                    - log_publish_error:
+                        call: sys.log
+                        args:
+                          data: ${"alert publish failed topic may not exist yet " + json.encode_to_string(pub_err)}
+                          severity: WARNING
+            - raise_batch_error:
+                raise: ${e}
+
+    - parallel_curate:
+        try:
+          parallel:
+            shared: [target_date, env, project_id, location]
+            branches:
+              - curate_ticks:
+                  steps:
+                    - run_curate_ticks:
+                        call: googleapis.run.v2.projects.locations.jobs.run
+                        args:
+                          name: ${"projects/" + project_id + "/locations/" + location + "/jobs/curate"}
+                          body:
+                            overrides:
+                              containerOverrides:
+                                - args:
+                                    - "--stream=ticks"
+                                    - ${"--date=" + target_date}
+                                  env:
+                                    - name: ENV
+                                      value: ${env}
+                                    - name: GCP_PROJECT_ID
+                                      value: ${project_id}
+                        result: curate_ticks_result
+              - curate_l1:
+                  steps:
+                    - run_curate_l1:
+                        call: googleapis.run.v2.projects.locations.jobs.run
+                        args:
+                          name: ${"projects/" + project_id + "/locations/" + location + "/jobs/curate"}
+                          body:
+                            overrides:
+                              containerOverrides:
+                                - args:
+                                    - "--stream=quotes-l1"
+                                    - ${"--date=" + target_date}
+                                  env:
+                                    - name: ENV
+                                      value: ${env}
+                                    - name: GCP_PROJECT_ID
+                                      value: ${project_id}
+                        result: curate_l1_result
+              - curate_l2:
+                  steps:
+                    - run_curate_l2:
+                        call: googleapis.run.v2.projects.locations.jobs.run
+                        args:
+                          name: ${"projects/" + project_id + "/locations/" + location + "/jobs/curate"}
+                          body:
+                            overrides:
+                              containerOverrides:
+                                - args:
+                                    - "--stream=quotes-l2"
+                                    - ${"--date=" + target_date}
+                                  env:
+                                    - name: ENV
+                                      value: ${env}
+                                    - name: GCP_PROJECT_ID
+                                      value: ${project_id}
+                        result: curate_l2_result
+              - curate_indices:
+                  steps:
+                    - run_curate_indices:
+                        call: googleapis.run.v2.projects.locations.jobs.run
+                        args:
+                          name: ${"projects/" + project_id + "/locations/" + location + "/jobs/curate"}
+                          body:
+                            overrides:
+                              containerOverrides:
+                                - args:
+                                    - "--stream=indices"
+                                    - ${"--date=" + target_date}
+                                  env:
+                                    - name: ENV
+                                      value: ${env}
+                                    - name: GCP_PROJECT_ID
+                                      value: ${project_id}
+                        result: curate_indices_result
+              - curate_daily:
+                  steps:
+                    - run_curate_daily:
+                        call: googleapis.run.v2.projects.locations.jobs.run
+                        args:
+                          name: ${"projects/" + project_id + "/locations/" + location + "/jobs/curate"}
+                          body:
+                            overrides:
+                              containerOverrides:
+                                - args:
+                                    - "--stream=daily-ohlcv"
+                                    - ${"--date=" + target_date}
+                                  env:
+                                    - name: ENV
+                                      value: ${env}
+                                    - name: GCP_PROJECT_ID
+                                      value: ${project_id}
+                        result: curate_daily_result
+        except:
+          as: e
+          steps:
+            - publish_curate_error:
+                try:
+                  call: googleapis.pubsub.v1.projects.topics.publish
+                  args:
+                    topic: ${alerts_topic}
+                    body:
+                      messages:
+                        - data: ${base64.encode(json.encode("eod-pipeline ERROR parallel curate failed target_date=" + target_date + " env=" + env))}
+                          attributes:
+                            severity: "error"
+                            source: "eod-pipeline"
+                            step: "parallel-curate"
+                            target_date: ${target_date}
+                except:
+                  as: pub_err2
+                  steps:
+                    - log_curate_publish_error:
+                        call: sys.log
+                        args:
+                          data: ${"alert publish failed topic may not exist yet " + json.encode_to_string(pub_err2)}
+                          severity: WARNING
+            - raise_curate_error:
+                raise: ${e}
+
+    - publish_summary:
+        try:
+          call: googleapis.pubsub.v1.projects.topics.publish
+          args:
+            topic: ${alerts_topic}
+            body:
+              messages:
+                - data: ${base64.encode(json.encode("eod-pipeline SUCCESS target_date=" + target_date + " env=" + env + " streams=ticks,quotes-l1,quotes-l2,indices,daily-ohlcv"))}
+                  attributes:
+                    severity: "info"
+                    source: "eod-pipeline"
+                    target_date: ${target_date}
+                    env: ${env}
+        except:
+          as: e
+          steps:
+            - log_summary_publish_failure:
+                call: sys.log
+                args:
+                  data: ${"summary publish failed platform-alerts topic not yet created Phase 07 dependency " + json.encode_to_string(e)}
+                  severity: WARNING
+
+    - return_ok:
+        return:
+          status: "ok"
+          target_date: ${target_date}
+          env: ${env}
+          streams_curated:
+            - ticks
+            - quotes-l1
+            - quotes-l2
+            - indices
+            - daily-ohlcv
