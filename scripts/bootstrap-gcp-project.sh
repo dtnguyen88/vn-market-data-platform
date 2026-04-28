@@ -38,8 +38,8 @@ fi
 gcloud config set project "${PROJECT_ID}"
 gcloud config set compute/region "${REGION}"
 
-# 4. Enable required APIs
-echo "==> Enabling APIs..."
+# 4. Enable required APIs (split into <=20-API batches per gcloud limit)
+echo "==> Enabling APIs (batch 1/2)..."
 gcloud services enable \
   cloudresourcemanager.googleapis.com \
   iam.googleapis.com \
@@ -56,7 +56,10 @@ gcloud services enable \
   cloudscheduler.googleapis.com \
   bigquery.googleapis.com \
   bigqueryconnection.googleapis.com \
-  bigquerystorage.googleapis.com \
+  bigquerystorage.googleapis.com
+
+echo "==> Enabling APIs (batch 2/2)..."
+gcloud services enable \
   secretmanager.googleapis.com \
   monitoring.googleapis.com \
   logging.googleapis.com \
