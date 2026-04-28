@@ -91,3 +91,22 @@ output "schedulers" {
   }
   description = "Map of scheduler short name to job resource ID."
 }
+
+output "alerter_url" {
+  value       = module.alerter_service.url
+  description = "Telegram alerter Cloud Run service URL."
+}
+
+output "platform_alerts_topic" {
+  value       = module.topic_platform_alerts.topic_id
+  description = "Pub/Sub topic for all platform alerts."
+}
+
+output "alert_policies" {
+  value = {
+    publisher_heartbeat  = module.alert_publisher_heartbeat.id
+    topic_publish_zero   = module.alert_topic_publish_zero.id
+    subscription_ack_lag = module.alert_subscription_ack_lag.id
+  }
+  description = "Map of alert-policy short name to resource ID."
+}

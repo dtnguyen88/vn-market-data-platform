@@ -593,3 +593,118 @@ module "sched_monthly_cost_report" {
   service_account_email = module.service_accounts.emails["workflows"]
   request_body          = jsonencode({ env = "staging" })
 }
+
+# ─── Alerter: Pub/Sub topic + Cloud Run service + push subscription ───────────
+
+# Pub/Sub topic for all platform alerts (workflows + monitoring channels publish here)
+module "topic_platform_alerts" {
+  source     = "../../modules/pubsub-topic"
+  project_id = var.project_id
+  name       = "platform-alerts"
+}
+
+# Alerter Cloud Run service (HTTP push subscriber for the topic above)
+module "alerter_service" {
+  source                = "../../modules/cloud-run-service"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "telegram-alerter"
+  image                 = "${local.artifact_registry_prefix}/alerter:latest"
+  service_account_email = module.service_accounts.emails["alerter"]
+  min_instances         = 0
+  max_instances         = 3
+  memory                = "512Mi"
+  cpu                   = "1"
+  ingress               = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+  env_vars = {
+    GCP_PROJECT_ID = var.project_id
+    ENV            = "staging"
+  }
+}
+
+# Push subscription: platform-alerts → telegram-alerter
+resource "google_pubsub_subscription" "alerter_push" {
+  project              = var.project_id
+  name                 = "platform-alerts-push-sub"
+  topic                = module.topic_platform_alerts.topic_id
+  ack_deadline_seconds = 30
+
+  push_config {
+    push_endpoint = module.alerter_service.url
+    oidc_token {
+      service_account_email = module.service_accounts.emails["alerter"]
+    }
+  }
+
+  dead_letter_policy {
+    dead_letter_topic     = module.topic_platform_alerts.dlq_topic_id
+    max_delivery_attempts = 5
+  }
+
+  retry_policy {
+    minimum_backoff = "10s"
+    maximum_backoff = "600s"
+  }
+}
+
+resource "google_cloud_run_v2_service_iam_member" "alerter_invoker" {
+  project  = var.project_id
+  location = var.region
+  name     = module.alerter_service.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${module.service_accounts.emails["alerter"]}"
+}
+
+# Notification channel: Pub/Sub. Cloud Monitoring publishes alerts here.
+resource "google_monitoring_notification_channel" "platform_alerts" {
+  project      = var.project_id
+  display_name = "platform-alerts (Pub/Sub)"
+  type         = "pubsub"
+  labels = {
+    topic = module.topic_platform_alerts.topic_id
+  }
+}
+
+# ─── 3 alert policies (spec F7.3) ────────────────────────────────────────────
+
+# 1. publisher_heartbeat absence > 90s
+module "alert_publisher_heartbeat" {
+  source                   = "../../modules/monitoring-alert"
+  project_id               = var.project_id
+  display_name             = "publisher heartbeat absent >90s"
+  documentation            = "A realtime-publisher shard has not emitted a heartbeat metric for >90s during a trading session. Likely crash or WS disconnect."
+  filter                   = "metric.type=\"custom.googleapis.com/publisher/heartbeat\" resource.type=\"global\""
+  duration_seconds         = 90
+  threshold_value          = 0.5
+  comparison               = "COMPARISON_LT"
+  notification_channel_ids = [google_monitoring_notification_channel.platform_alerts.id]
+  labels                   = { severity = "critical", source = "publisher" }
+}
+
+# 2. topic publish rate = 0 for >120s
+module "alert_topic_publish_zero" {
+  source                   = "../../modules/monitoring-alert"
+  project_id               = var.project_id
+  display_name             = "market-ticks publish rate = 0 >120s"
+  documentation            = "No messages published to market-ticks for 2+ min during a trading session. Publisher likely down."
+  filter                   = "metric.type=\"pubsub.googleapis.com/topic/send_message_operation_count\" resource.type=\"pubsub_topic\" resource.label.\"topic_id\"=\"market-ticks\""
+  duration_seconds         = 120
+  threshold_value          = 0.1
+  comparison               = "COMPARISON_LT"
+  notification_channel_ids = [google_monitoring_notification_channel.platform_alerts.id]
+  labels                   = { severity = "critical", source = "pubsub" }
+}
+
+# 3. subscription oldest_unacked_message_age > 180s
+module "alert_subscription_ack_lag" {
+  source                   = "../../modules/monitoring-alert"
+  project_id               = var.project_id
+  display_name             = "any subscription ack-lag >180s"
+  documentation            = "A Pub/Sub subscription has unacked messages older than 180s. Writer service likely backlogged or crashed."
+  filter                   = "metric.type=\"pubsub.googleapis.com/subscription/oldest_unacked_message_age\" resource.type=\"pubsub_subscription\""
+  duration_seconds         = 180
+  threshold_value          = 180
+  comparison               = "COMPARISON_GT"
+  notification_channel_ids = [google_monitoring_notification_channel.platform_alerts.id]
+  labels                   = { severity = "warning", source = "pubsub" }
+}
