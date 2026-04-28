@@ -1,0 +1,94 @@
+# _shared-check-trading-day.yaml
+#
+# Reusable sub-workflow: returns whether `target_date` is a VN trading day.
+# Leading underscore signals this is a shared/internal sub-workflow — not
+# intended to be triggered directly by schedulers.
+#
+# Args:
+#   target_date: ISO YYYY-MM-DD (string)
+#   env: staging | prod | test
+#
+# Returns:
+#   {
+#     is_trading_day: bool,
+#     holiday_name: string | null,
+#     calendar_year: int
+#   }
+#
+# Calendar source:
+#   gs://vn-market-lake-{env}/_ops/calendar/{YYYY}.json
+#   Structure: {year, trading_days: [...], holidays: [{date, name}], sessions: {...}}
+#
+# IAM requirement:
+#   workflows-sa must have roles/storage.objectViewer on the lake bucket.
+#
+# Usage from a parent workflow:
+#   - check_calendar:
+#       call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
+#       args:
+#         workflow_id: _shared-check-trading-day
+#         argument:
+#           target_date: ${target_date}
+#           env: ${env}
+#       result: cal_result
+
+main:
+  params: [args]
+  steps:
+    - init:
+        assign:
+          - target_date: ${args.target_date}
+          - env: ${args.env}
+          - year: ${int(text.substring(target_date, 0, 4))}
+          - bucket: ${"vn-market-lake-" + env}
+          - calendar_uri: ${"https://storage.googleapis.com/storage/v1/b/" + bucket + "/o/_ops%2Fcalendar%2F" + string(year) + ".json?alt=media"}
+
+    - fetch_calendar:
+        call: http.get
+        args:
+          url: ${calendar_uri}
+          auth:
+            type: OAuth2
+            scopes:
+              - https://www.googleapis.com/auth/devstorage.read_only
+        result: cal_response
+
+    - parse_calendar:
+        assign:
+          - calendar: ${cal_response.body}
+          - trading_days: ${calendar.trading_days}
+          - holidays: ${calendar.holidays}
+
+    - find_holiday:
+        assign:
+          - holiday_name: null
+          - is_trading_day: false
+        next: scan_holidays
+
+    - scan_holidays:
+        for:
+          value: holiday
+          in: ${holidays}
+          steps:
+            - check_match:
+                switch:
+                  - condition: ${holiday.date == target_date}
+                    assign:
+                      - holiday_name: ${holiday.name}
+
+    - scan_trading_days:
+        for:
+          value: td
+          in: ${trading_days}
+          steps:
+            - check_td:
+                switch:
+                  - condition: ${td == target_date}
+                    assign:
+                      - is_trading_day: true
+
+    - return_result:
+        return:
+          is_trading_day: ${is_trading_day}
+          holiday_name: ${holiday_name}
+          calendar_year: ${year}
