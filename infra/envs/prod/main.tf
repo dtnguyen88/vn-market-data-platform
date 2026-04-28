@@ -709,6 +709,93 @@ module "alert_subscription_ack_lag" {
   labels                   = { severity = "warning", source = "pubsub" }
 }
 
+# ─── Ops Cloud Run Jobs (5 observability jobs) ───────────────────────────────
+
+module "ops_cost_report" {
+  source                = "../../modules/cloud-run-job"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "cost-report"
+  image                 = "${local.artifact_registry_prefix}/ops-cost-report:latest"
+  service_account_email = module.service_accounts.emails["batch-ingester"]
+  task_count            = 1
+  parallelism           = 1
+  task_timeout          = "300s"
+  max_retries           = 1
+  memory                = "512Mi"
+  cpu                   = "1"
+  env_vars              = { GCP_PROJECT_ID = var.project_id, ENV = "prod" }
+}
+
+module "ops_dlq_drain" {
+  source                = "../../modules/cloud-run-job"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "dlq-drain"
+  image                 = "${local.artifact_registry_prefix}/ops-dlq-drain:latest"
+  service_account_email = module.service_accounts.emails["batch-ingester"]
+  task_count            = 1
+  parallelism           = 1
+  task_timeout          = "300s"
+  max_retries           = 1
+  memory                = "512Mi"
+  cpu                   = "1"
+  env_vars              = { GCP_PROJECT_ID = var.project_id, ENV = "prod" }
+}
+
+module "ops_dlq_replay" {
+  source                = "../../modules/cloud-run-job"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "dlq-replay"
+  image                 = "${local.artifact_registry_prefix}/ops-dlq-replay:latest"
+  service_account_email = module.service_accounts.emails["batch-ingester"]
+  task_count            = 1
+  parallelism           = 1
+  task_timeout          = "300s"
+  max_retries           = 0
+  memory                = "512Mi"
+  cpu                   = "1"
+  env_vars              = { GCP_PROJECT_ID = var.project_id, ENV = "prod" }
+}
+
+module "ops_coverage_check" {
+  source                = "../../modules/cloud-run-job"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "coverage-check"
+  image                 = "${local.artifact_registry_prefix}/ops-coverage-check:latest"
+  service_account_email = module.service_accounts.emails["batch-ingester"]
+  task_count            = 1
+  parallelism           = 1
+  task_timeout          = "300s"
+  max_retries           = 1
+  memory                = "512Mi"
+  cpu                   = "1"
+  env_vars              = { GCP_PROJECT_ID = var.project_id, ENV = "prod" }
+}
+
+module "ops_data_quality" {
+  source                = "../../modules/cloud-run-job"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "data-quality"
+  image                 = "${local.artifact_registry_prefix}/ops-data-quality:latest"
+  service_account_email = module.service_accounts.emails["batch-ingester"]
+  task_count            = 1
+  parallelism           = 1
+  task_timeout          = "600s"
+  max_retries           = 1
+  memory                = "512Mi"
+  cpu                   = "1"
+  env_vars              = { GCP_PROJECT_ID = var.project_id, ENV = "prod" }
+}
+
+module "monitoring_dashboard" {
+  source     = "../../modules/monitoring-dashboard"
+  project_id = var.project_id
+}
+
 # ─── Research App: Streamlit UI (IAM-protected via run.invoker grant) ─────────
 
 module "research_app" {

@@ -115,3 +115,19 @@ output "research_app_url" {
   value       = module.research_app.url
   description = "Streamlit research-app Cloud Run URL (IAM-protected)."
 }
+
+output "ops_jobs" {
+  value = {
+    cost_report    = module.ops_cost_report.id
+    dlq_drain      = module.ops_dlq_drain.id
+    dlq_replay     = module.ops_dlq_replay.id
+    coverage_check = module.ops_coverage_check.id
+    data_quality   = module.ops_data_quality.id
+  }
+  description = "Map of ops job short name to Cloud Run Job ID."
+}
+
+output "monitoring_dashboard_id" {
+  value       = module.monitoring_dashboard.id
+  description = "vn-platform-ops Cloud Monitoring dashboard resource ID."
+}
