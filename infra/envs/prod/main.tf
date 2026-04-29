@@ -447,9 +447,9 @@ module "wf_shared_check_trading_day" {
   source                = "../../modules/workflow"
   project_id            = var.project_id
   location              = var.region
-  name                  = "_shared-check-trading-day"
+  name                  = "shared-check-trading-day"
   description           = "Reusable: check if a date is a VN trading day."
-  source_file_path      = "${local.workflows_path}/_shared-check-trading-day.yaml"
+  source_file_path      = "${local.workflows_path}/shared-check-trading-day.yaml"
   service_account_email = module.service_accounts.emails["workflows"]
   labels                = { env = "prod" }
 }

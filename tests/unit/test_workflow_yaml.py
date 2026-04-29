@@ -8,7 +8,7 @@ import yaml
 WF_DIR = Path(__file__).parent.parent.parent / "infra" / "workflows"
 
 EXPECTED_WORKFLOWS = {
-    "_shared-check-trading-day.yaml",
+    "shared-check-trading-day.yaml",
     "eod-pipeline.yaml",
     "intraday-coverage-check.yaml",
     "reference-refresh.yaml",

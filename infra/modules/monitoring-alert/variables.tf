@@ -46,3 +46,9 @@ variable "labels" {
   default     = {}
   description = "User labels."
 }
+
+variable "per_series_aligner" {
+  type        = string
+  default     = "ALIGN_MEAN"
+  description = "Aligner: ALIGN_RATE for DELTA/cumulative, ALIGN_MEAN for GAUGE."
+}

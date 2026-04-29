@@ -13,13 +13,13 @@
 #   2. run_reference_job (with retry)
 #
 # Dependencies:
-#   - Sub-workflow _shared-check-trading-day deployed in same project/env.
+#   - Sub-workflow shared-check-trading-day deployed in same project/env.
 #   - Cloud Run Job: batch-ingester-reference.
 #
 # IAM requirements:
 #   workflows-sa must have:
 #     roles/run.invoker       on Cloud Run Jobs
-#     roles/workflows.invoker on _shared-check-trading-day workflow
+#     roles/workflows.invoker on shared-check-trading-day workflow
 
 main:
   params: [args]
@@ -27,8 +27,8 @@ main:
     - init:
         assign:
           - target_date: ${default(map.get(args, "target_date"), "")}
-          - env: ${default(map.get(args, "env"), "staging")}
-          - project_id: ${"vn-market-platform-" + env}
+          - target_env: ${default(map.get(args, "target_env"), "staging")}
+          - project_id: ${"vn-market-platform-" + target_env}
           - location: "asia-southeast1"
           - alerts_topic: ${"projects/" + project_id + "/topics/platform-alerts"}
 
@@ -45,10 +45,10 @@ main:
         try:
           call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
           args:
-            workflow_id: "_shared-check-trading-day"
+            workflow_id: "shared-check-trading-day"
             argument:
               target_date: ${target_date}
-              env: ${env}
+              target_env: ${target_env}
           result: cal_result
         except:
           as: e
@@ -83,7 +83,7 @@ main:
                       - name: TARGET_DATE
                         value: ${target_date}
                       - name: ENV
-                        value: ${env}
+                        value: ${target_env}
                       - name: GCP_PROJECT_ID
                         value: ${project_id}
           result: ref_result
@@ -104,12 +104,12 @@ main:
                     topic: ${alerts_topic}
                     body:
                       messages:
-                        - data: ${base64.encode(json.encode("reference-refresh ERROR batch-ingester-reference failed target_date=" + target_date + " env=" + env))}
+                        - data: ${base64.encode(json.encode("reference-refresh ERROR batch-ingester-reference failed target_date=" + target_date + " env=" + target_env))}
                           attributes:
                             severity: "error"
                             source: "reference-refresh"
                             target_date: ${target_date}
-                            env: ${env}
+                            target_env: ${target_env}
                 except:
                   as: pe
                   steps:
@@ -128,12 +128,12 @@ main:
             topic: ${alerts_topic}
             body:
               messages:
-                - data: ${base64.encode(json.encode("reference-refresh SUCCESS target_date=" + target_date + " env=" + env))}
+                - data: ${base64.encode(json.encode("reference-refresh SUCCESS target_date=" + target_date + " env=" + target_env))}
                   attributes:
                     severity: "info"
                     source: "reference-refresh"
                     target_date: ${target_date}
-                    env: ${env}
+                    target_env: ${target_env}
         except:
           as: e
           steps:
@@ -147,4 +147,4 @@ main:
         return:
           status: "ok"
           target_date: ${target_date}
-          env: ${env}
+          target_env: ${target_env}

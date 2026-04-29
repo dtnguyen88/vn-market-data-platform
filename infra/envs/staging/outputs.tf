@@ -104,7 +104,7 @@ output "platform_alerts_topic" {
 
 output "alert_policies" {
   value = {
-    publisher_heartbeat  = module.alert_publisher_heartbeat.id
+    # publisher_heartbeat   DISABLED — re-add after publisher Cloud Run is deployed
     topic_publish_zero   = module.alert_topic_publish_zero.id
     subscription_ack_lag = module.alert_subscription_ack_lag.id
   }

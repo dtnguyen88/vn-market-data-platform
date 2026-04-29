@@ -24,13 +24,13 @@ main:
   steps:
     - init:
         assign:
-          - env: ${default(map.get(args, "env"), "staging")}
-          - project_id: ${"vn-market-platform-" + env}
+          - target_env: ${default(map.get(args, "target_env"), "staging")}
+          - project_id: ${"vn-market-platform-" + target_env}
           - alerts_topic: ${"projects/" + project_id + "/topics/platform-alerts"}
           - now_vn: ${time.format(sys.now(), "Asia/Ho_Chi_Minh")}
           - this_year: ${int(text.substring(now_vn, 0, 4))}
           - next_year: ${this_year + 1}
-          - bucket: ${"vn-market-lake-" + env}
+          - bucket: ${"vn-market-lake-" + target_env}
           - calendar_uri: ${"https://storage.googleapis.com/storage/v1/b/" + bucket + "/o/_ops%2Fcalendar%2F" + string(next_year) + ".json?alt=media"}
 
     - check_next_year_calendar:
@@ -49,7 +49,7 @@ main:
             - log_missing_calendar:
                 call: sys.log
                 args:
-                  data: ${"calendar-refresh-yearly next year calendar missing year=" + string(next_year) + " env=" + env}
+                  data: ${"calendar-refresh-yearly next year calendar missing year=" + string(next_year) + " env=" + target_env}
                   severity: WARNING
             - alert_missing_calendar:
                 try:
@@ -58,12 +58,12 @@ main:
                     topic: ${alerts_topic}
                     body:
                       messages:
-                        - data: ${base64.encode(json.encode("calendar-refresh-yearly next year " + string(next_year) + " calendar missing in env=" + env))}
+                        - data: ${base64.encode(json.encode("calendar-refresh-yearly next year " + string(next_year) + " calendar missing in env=" + target_env))}
                           attributes:
                             severity: "warning"
                             source: "calendar-refresh-yearly"
                             next_year: ${string(next_year)}
-                            env: ${env}
+                            target_env: ${target_env}
                 except:
                   as: pe
                   steps:
@@ -76,7 +76,7 @@ main:
                 return:
                   status: "missing"
                   next_year: ${next_year}
-                  env: ${env}
+                  target_env: ${target_env}
 
     - publish_summary:
         try:
@@ -85,12 +85,12 @@ main:
             topic: ${alerts_topic}
             body:
               messages:
-                - data: ${base64.encode(json.encode("calendar-refresh-yearly OK next year " + string(next_year) + " calendar present env=" + env))}
+                - data: ${base64.encode(json.encode("calendar-refresh-yearly OK next year " + string(next_year) + " calendar present env=" + target_env))}
                   attributes:
                     severity: "info"
                     source: "calendar-refresh-yearly"
                     next_year: ${string(next_year)}
-                    env: ${env}
+                    target_env: ${target_env}
         except:
           as: e
           steps:
@@ -104,4 +104,4 @@ main:
         return:
           status: "ok"
           next_year: ${next_year}
-          env: ${env}
+          target_env: ${target_env}

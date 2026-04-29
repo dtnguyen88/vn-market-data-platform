@@ -14,7 +14,7 @@
 #   3. publish summary to platform-alerts
 #
 # Dependencies:
-#   - Sub-workflow _shared-check-trading-day deployed in same project/env.
+#   - Sub-workflow shared-check-trading-day deployed in same project/env.
 #   - Cloud Run Job: curate.
 #   - Pub/Sub topic platform-alerts (Phase 07 forward-ref).
 #
@@ -22,7 +22,7 @@
 #   workflows-sa must have:
 #     roles/run.invoker       on Cloud Run Jobs
 #     roles/pubsub.publisher  on platform-alerts topic
-#     roles/workflows.invoker on _shared-check-trading-day workflow
+#     roles/workflows.invoker on shared-check-trading-day workflow
 
 main:
   params: [args]
@@ -30,8 +30,8 @@ main:
     - init:
         assign:
           - target_date: ${default(map.get(args, "target_date"), "")}
-          - env: ${default(map.get(args, "env"), "staging")}
-          - project_id: ${"vn-market-platform-" + env}
+          - target_env: ${default(map.get(args, "target_env"), "staging")}
+          - project_id: ${"vn-market-platform-" + target_env}
           - location: "asia-southeast1"
           - alerts_topic: ${"projects/" + project_id + "/topics/platform-alerts"}
 
@@ -48,10 +48,10 @@ main:
         try:
           call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
           args:
-            workflow_id: "_shared-check-trading-day"
+            workflow_id: "shared-check-trading-day"
             argument:
               target_date: ${target_date}
-              env: ${env}
+              target_env: ${target_env}
           result: cal_result
         except:
           as: e
@@ -77,7 +77,7 @@ main:
     - parallel_curate:
         try:
           parallel:
-            shared: [target_date, env, project_id, location]
+            shared: [target_date, target_env, project_id, location]
             branches:
               - curate_ticks:
                   steps:
@@ -93,7 +93,7 @@ main:
                                     - ${"--date=" + target_date}
                                   env:
                                     - name: ENV
-                                      value: ${env}
+                                      value: ${target_env}
                                     - name: GCP_PROJECT_ID
                                       value: ${project_id}
               - curate_l1:
@@ -110,7 +110,7 @@ main:
                                     - ${"--date=" + target_date}
                                   env:
                                     - name: ENV
-                                      value: ${env}
+                                      value: ${target_env}
                                     - name: GCP_PROJECT_ID
                                       value: ${project_id}
               - curate_l2:
@@ -127,7 +127,7 @@ main:
                                     - ${"--date=" + target_date}
                                   env:
                                     - name: ENV
-                                      value: ${env}
+                                      value: ${target_env}
                                     - name: GCP_PROJECT_ID
                                       value: ${project_id}
               - curate_indices:
@@ -144,7 +144,7 @@ main:
                                     - ${"--date=" + target_date}
                                   env:
                                     - name: ENV
-                                      value: ${env}
+                                      value: ${target_env}
                                     - name: GCP_PROJECT_ID
                                       value: ${project_id}
               - curate_daily:
@@ -161,7 +161,7 @@ main:
                                     - ${"--date=" + target_date}
                                   env:
                                     - name: ENV
-                                      value: ${env}
+                                      value: ${target_env}
                                     - name: GCP_PROJECT_ID
                                       value: ${project_id}
         except:
@@ -174,12 +174,12 @@ main:
                     topic: ${alerts_topic}
                     body:
                       messages:
-                        - data: ${base64.encode(json.encode("curate-fallback ERROR parallel curate failed target_date=" + target_date + " env=" + env))}
+                        - data: ${base64.encode(json.encode("curate-fallback ERROR parallel curate failed target_date=" + target_date + " env=" + target_env))}
                           attributes:
                             severity: "error"
                             source: "curate-fallback"
                             target_date: ${target_date}
-                            env: ${env}
+                            target_env: ${target_env}
                 except:
                   as: pe
                   steps:
@@ -198,12 +198,12 @@ main:
             topic: ${alerts_topic}
             body:
               messages:
-                - data: ${base64.encode(json.encode("curate-fallback SUCCESS target_date=" + target_date + " env=" + env + " streams=ticks,quotes-l1,quotes-l2,indices,daily-ohlcv"))}
+                - data: ${base64.encode(json.encode("curate-fallback SUCCESS target_date=" + target_date + " env=" + target_env + " streams=ticks,quotes-l1,quotes-l2,indices,daily-ohlcv"))}
                   attributes:
                     severity: "info"
                     source: "curate-fallback"
                     target_date: ${target_date}
-                    env: ${env}
+                    target_env: ${target_env}
         except:
           as: e
           steps:
@@ -217,7 +217,7 @@ main:
         return:
           status: "ok"
           target_date: ${target_date}
-          env: ${env}
+          target_env: ${target_env}
           streams_curated:
             - ticks
             - quotes-l1

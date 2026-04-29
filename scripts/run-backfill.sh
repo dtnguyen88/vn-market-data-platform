@@ -11,5 +11,5 @@ STREAMS="${5:-daily,fundamentals,corp_actions,reference}"
 PROJECT_ID="vn-market-platform-${ENV}"
 gcloud run jobs execute backfill \
   --project="${PROJECT_ID}" --region=asia-southeast1 \
-  --tasks="${TASKS}" --parallelism="${TASKS}" \
+  --tasks="${TASKS}" \
   --args="--start=${START},--end=${END},--streams=${STREAMS}"

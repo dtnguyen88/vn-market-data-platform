@@ -78,6 +78,7 @@ locals {
 # ─── 4 publisher shards (stateful WS consumers, min=max=1) ───────────────────
 
 module "publisher_shard_0" {
+  count                 = 0 # DISABLED: needs SSI creds + HTTP /healthz listener (see TODO)
   source                = "../../modules/cloud-run-service"
   project_id            = var.project_id
   location              = var.region
@@ -98,6 +99,7 @@ module "publisher_shard_0" {
 }
 
 module "publisher_shard_1" {
+  count                 = 0 # DISABLED: needs SSI creds + HTTP /healthz listener (see TODO)
   source                = "../../modules/cloud-run-service"
   project_id            = var.project_id
   location              = var.region
@@ -118,6 +120,7 @@ module "publisher_shard_1" {
 }
 
 module "publisher_shard_2" {
+  count                 = 0 # DISABLED: needs SSI creds + HTTP /healthz listener (see TODO)
   source                = "../../modules/cloud-run-service"
   project_id            = var.project_id
   location              = var.region
@@ -138,6 +141,7 @@ module "publisher_shard_2" {
 }
 
 module "publisher_shard_3" {
+  count                 = 0 # DISABLED: needs SSI creds + HTTP /healthz listener (see TODO)
   source                = "../../modules/cloud-run-service"
   project_id            = var.project_id
   location              = var.region
@@ -447,9 +451,9 @@ module "wf_shared_check_trading_day" {
   source                = "../../modules/workflow"
   project_id            = var.project_id
   location              = var.region
-  name                  = "_shared-check-trading-day"
+  name                  = "shared-check-trading-day"
   description           = "Reusable: check if a date is a VN trading day."
-  source_file_path      = "${local.workflows_path}/_shared-check-trading-day.yaml"
+  source_file_path      = "${local.workflows_path}/shared-check-trading-day.yaml"
   service_account_email = module.service_accounts.emails["workflows"]
   labels                = { env = "staging" }
 }
@@ -668,13 +672,16 @@ resource "google_monitoring_notification_channel" "platform_alerts" {
 # ─── 3 alert policies (spec F7.3) ────────────────────────────────────────────
 
 # 1. publisher_heartbeat absence > 90s
+# DISABLED: alert depends on custom metric publisher/heartbeat which is created
+# by the publisher service at runtime. Re-enable after publishers are deployed.
 module "alert_publisher_heartbeat" {
+  count                    = 0
   source                   = "../../modules/monitoring-alert"
   project_id               = var.project_id
-  display_name             = "publisher heartbeat absent >90s"
-  documentation            = "A realtime-publisher shard has not emitted a heartbeat metric for >90s during a trading session. Likely crash or WS disconnect."
+  display_name             = "publisher heartbeat absent >60s"
+  documentation            = "A realtime-publisher shard has not emitted a heartbeat metric for >60s during a trading session. Likely crash or WS disconnect."
   filter                   = "metric.type=\"custom.googleapis.com/publisher/heartbeat\" resource.type=\"global\""
-  duration_seconds         = 90
+  duration_seconds         = 60
   threshold_value          = 0.5
   comparison               = "COMPARISON_LT"
   notification_channel_ids = [google_monitoring_notification_channel.platform_alerts.id]
@@ -691,6 +698,7 @@ module "alert_topic_publish_zero" {
   duration_seconds         = 120
   threshold_value          = 0.1
   comparison               = "COMPARISON_LT"
+  per_series_aligner       = "ALIGN_RATE"
   notification_channel_ids = [google_monitoring_notification_channel.platform_alerts.id]
   labels                   = { severity = "critical", source = "pubsub" }
 }

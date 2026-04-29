@@ -16,7 +16,7 @@
 #   Any step failure publishes severity=error alert then re-raises.
 #
 # Dependencies:
-#   - Sub-workflow _shared-check-trading-day deployed in same project/env.
+#   - Sub-workflow shared-check-trading-day deployed in same project/env.
 #   - Cloud Run Jobs: batch-ingester-eod, curate.
 #   - Pub/Sub topic platform-alerts -- created in Phase 07.
 #     Until then, publish_summary step will fail gracefully; all prior steps still succeed.
@@ -25,7 +25,7 @@
 #   workflows-sa must have:
 #     roles/run.invoker         on Cloud Run Jobs
 #     roles/pubsub.publisher    on platform-alerts topic
-#     roles/workflows.invoker   on _shared-check-trading-day workflow
+#     roles/workflows.invoker   on shared-check-trading-day workflow
 
 main:
   params: [args]
@@ -33,8 +33,8 @@ main:
     - init:
         assign:
           - target_date: ${default(map.get(args, "target_date"), "")}
-          - env: ${default(map.get(args, "env"), "staging")}
-          - project_id: ${"vn-market-platform-" + env}
+          - target_env: ${default(map.get(args, "target_env"), "staging")}
+          - project_id: ${"vn-market-platform-" + target_env}
           - location: "asia-southeast1"
           - alerts_topic: ${"projects/" + project_id + "/topics/platform-alerts"}
 
@@ -51,10 +51,10 @@ main:
         try:
           call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
           args:
-            workflow_id: "_shared-check-trading-day"
+            workflow_id: "shared-check-trading-day"
             argument:
               target_date: ${target_date}
-              env: ${env}
+              target_env: ${target_env}
           result: cal_result
         except:
           as: e
@@ -95,7 +95,7 @@ main:
                       - name: TARGET_DATE
                         value: ${target_date}
                       - name: ENV
-                        value: ${env}
+                        value: ${target_env}
                       - name: GCP_PROJECT_ID
                         value: ${project_id}
           result: batch_result
@@ -116,7 +116,7 @@ main:
                     topic: ${alerts_topic}
                     body:
                       messages:
-                        - data: ${base64.encode(json.encode("eod-pipeline ERROR batch-ingester-eod failed target_date=" + target_date + " env=" + env))}
+                        - data: ${base64.encode(json.encode("eod-pipeline ERROR batch-ingester-eod failed target_date=" + target_date + " env=" + target_env))}
                           attributes:
                             severity: "error"
                             source: "eod-pipeline"
@@ -136,7 +136,7 @@ main:
     - parallel_curate:
         try:
           parallel:
-            shared: [target_date, env, project_id, location]
+            shared: [target_date, target_env, project_id, location]
             branches:
               - curate_ticks:
                   steps:
@@ -152,7 +152,7 @@ main:
                                     - ${"--date=" + target_date}
                                   env:
                                     - name: ENV
-                                      value: ${env}
+                                      value: ${target_env}
                                     - name: GCP_PROJECT_ID
                                       value: ${project_id}
                         result: curate_ticks_result
@@ -170,7 +170,7 @@ main:
                                     - ${"--date=" + target_date}
                                   env:
                                     - name: ENV
-                                      value: ${env}
+                                      value: ${target_env}
                                     - name: GCP_PROJECT_ID
                                       value: ${project_id}
                         result: curate_l1_result
@@ -188,7 +188,7 @@ main:
                                     - ${"--date=" + target_date}
                                   env:
                                     - name: ENV
-                                      value: ${env}
+                                      value: ${target_env}
                                     - name: GCP_PROJECT_ID
                                       value: ${project_id}
                         result: curate_l2_result
@@ -206,7 +206,7 @@ main:
                                     - ${"--date=" + target_date}
                                   env:
                                     - name: ENV
-                                      value: ${env}
+                                      value: ${target_env}
                                     - name: GCP_PROJECT_ID
                                       value: ${project_id}
                         result: curate_indices_result
@@ -224,7 +224,7 @@ main:
                                     - ${"--date=" + target_date}
                                   env:
                                     - name: ENV
-                                      value: ${env}
+                                      value: ${target_env}
                                     - name: GCP_PROJECT_ID
                                       value: ${project_id}
                         result: curate_daily_result
@@ -238,7 +238,7 @@ main:
                     topic: ${alerts_topic}
                     body:
                       messages:
-                        - data: ${base64.encode(json.encode("eod-pipeline ERROR parallel curate failed target_date=" + target_date + " env=" + env))}
+                        - data: ${base64.encode(json.encode("eod-pipeline ERROR parallel curate failed target_date=" + target_date + " env=" + target_env))}
                           attributes:
                             severity: "error"
                             source: "eod-pipeline"
@@ -262,12 +262,12 @@ main:
             topic: ${alerts_topic}
             body:
               messages:
-                - data: ${base64.encode(json.encode("eod-pipeline SUCCESS target_date=" + target_date + " env=" + env + " streams=ticks,quotes-l1,quotes-l2,indices,daily-ohlcv"))}
+                - data: ${base64.encode(json.encode("eod-pipeline SUCCESS target_date=" + target_date + " env=" + target_env + " streams=ticks,quotes-l1,quotes-l2,indices,daily-ohlcv"))}
                   attributes:
                     severity: "info"
                     source: "eod-pipeline"
                     target_date: ${target_date}
-                    env: ${env}
+                    target_env: ${target_env}
         except:
           as: e
           steps:
@@ -281,7 +281,7 @@ main:
         return:
           status: "ok"
           target_date: ${target_date}
-          env: ${env}
+          target_env: ${target_env}
           streams_curated:
             - ticks
             - quotes-l1

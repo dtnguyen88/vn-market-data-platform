@@ -20,8 +20,8 @@ main:
   steps:
     - init:
         assign:
-          - env: ${default(map.get(args, "env"), "staging")}
-          - project_id: ${"vn-market-platform-" + env}
+          - target_env: ${default(map.get(args, "target_env"), "staging")}
+          - project_id: ${"vn-market-platform-" + target_env}
           - location: "asia-southeast1"
           - alerts_topic: ${"projects/" + project_id + "/topics/platform-alerts"}
 
@@ -37,7 +37,7 @@ main:
                       - "--mode=monthly"
                     env:
                       - name: ENV
-                        value: ${env}
+                        value: ${target_env}
                       - name: GCP_PROJECT_ID
                         value: ${project_id}
           result: cost_result
@@ -63,11 +63,11 @@ main:
                     topic: ${alerts_topic}
                     body:
                       messages:
-                        - data: ${base64.encode(json.encode("monthly-cost-report ERROR cost-report job failed env=" + env))}
+                        - data: ${base64.encode(json.encode("monthly-cost-report ERROR cost-report job failed env=" + target_env))}
                           attributes:
                             severity: "error"
                             source: "monthly-cost-report"
-                            env: ${env}
+                            target_env: ${target_env}
                 except:
                   as: pe
                   steps:
@@ -82,4 +82,4 @@ main:
     - return_ok:
         return:
           status: "ok"
-          env: ${env}
+          target_env: ${target_env}

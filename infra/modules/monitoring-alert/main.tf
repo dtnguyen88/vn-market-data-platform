@@ -29,7 +29,7 @@ resource "google_monitoring_alert_policy" "policy" {
       threshold_value = var.threshold_value
       aggregations {
         alignment_period   = "60s"
-        per_series_aligner = "ALIGN_RATE"
+        per_series_aligner = var.per_series_aligner
       }
     }
   }

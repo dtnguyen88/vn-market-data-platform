@@ -1,4 +1,4 @@
-# _shared-check-trading-day.yaml
+# shared-check-trading-day.yaml
 #
 # Reusable sub-workflow: returns whether `target_date` is a VN trading day.
 # Leading underscore signals this is a shared/internal sub-workflow — not
@@ -26,10 +26,10 @@
 #   - check_calendar:
 #       call: googleapis.workflowexecutions.v1.projects.locations.workflows.executions.run
 #       args:
-#         workflow_id: _shared-check-trading-day
+#         workflow_id: shared-check-trading-day
 #         argument:
 #           target_date: ${target_date}
-#           env: ${env}
+#           env: ${target_env}
 #       result: cal_result
 
 main:
@@ -38,9 +38,9 @@ main:
     - init:
         assign:
           - target_date: ${args.target_date}
-          - env: ${args.env}
+          - target_env: ${args.target_env}
           - year: ${int(text.substring(target_date, 0, 4))}
-          - bucket: ${"vn-market-lake-" + env}
+          - bucket: ${"vn-market-lake-" + target_env}
           - calendar_uri: ${"https://storage.googleapis.com/storage/v1/b/" + bucket + "/o/_ops%2Fcalendar%2F" + string(year) + ".json?alt=media"}
 
     - fetch_calendar:
