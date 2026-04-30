@@ -26,6 +26,7 @@ dependencies = [
   "tenacity>=8.2",
   "streamlit>=1.36",
   "plotly>=5.20",
+  "extra-streamlit-components>=0.1.60",
 ]
 
 [project.optional-dependencies]
