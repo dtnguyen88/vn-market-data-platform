@@ -67,10 +67,20 @@ for sym in symbols:
     lo = sub["low"].min() if "low" in sub.columns else sub["close"].min()
 
     m1, m2, m3, m4 = st.columns(4)
+
+    def _fmt_vol(v: float) -> str:
+        if v >= 1e9:
+            return f"{v / 1e9:.2f}B"
+        if v >= 1e6:
+            return f"{v / 1e6:.2f}M"
+        if v >= 1e3:
+            return f"{v / 1e3:.1f}K"
+        return f"{v:.0f}"
+
     m1.metric("Last close", f"{last['close']:,.0f}", f"{chg_pct:+.2f}% range")
     m2.metric("Period high", f"{hi:,.0f}")
     m3.metric("Period low", f"{lo:,.0f}")
-    m4.metric("Avg volume", f"{avg_vol:,.0f}")
+    m4.metric("Avg volume", _fmt_vol(avg_vol))
 
     st.plotly_chart(price_volume_chart(sub), use_container_width=True)
     with st.expander("Recent rows", expanded=False):

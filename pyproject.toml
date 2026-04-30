@@ -24,9 +24,8 @@ dependencies = [
   "uvicorn[standard]>=0.30",
   "vnstock>=3.0",
   "tenacity>=8.2",
-  "streamlit>=1.36",
+  "streamlit>=1.56",
   "plotly>=5.20",
-  "extra-streamlit-components>=0.1.60",
 ]
 
 [project.optional-dependencies]

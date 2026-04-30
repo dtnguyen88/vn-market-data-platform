@@ -68,13 +68,16 @@ def price_volume_chart(df, title: str = "") -> go.Figure:
             col=1,
         )
 
-    fig.update_layout(
-        title=title or None,
-        height=520,
-        hovermode="x unified",
-        xaxis_rangeslider_visible=False,
-        showlegend=False,
-    )
+    layout_kwargs = {
+        "height": 520,
+        "hovermode": "x unified",
+        "xaxis_rangeslider_visible": False,
+        "showlegend": False,
+        "margin": {"l": 50, "r": 30, "t": 30 if title else 10, "b": 40},
+    }
+    if title:
+        layout_kwargs["title"] = title
+    fig.update_layout(**layout_kwargs)
     fig.update_yaxes(title_text="Price", row=1, col=1)
     fig.update_yaxes(title_text="Volume", row=2, col=1)
     return fig
