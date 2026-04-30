@@ -61,6 +61,7 @@ locals {
         "roles/storage.objectViewer",
         "roles/bigquery.dataViewer",
         "roles/bigquery.jobUser",
+        "roles/bigquery.readSessionUser",
         "roles/logging.logWriter",
       ]
     }
