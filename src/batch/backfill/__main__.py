@@ -320,13 +320,14 @@ async def _async_main(
 ) -> None:
     from google.cloud import storage  # lazy
 
-    concurrency = 10
-    rate = 2.0
-    capacity = 10
+    # vnstock community = 20 req/min hard limit per IP. Keep aggregate well under.
+    # Single shared bucket across all streams: 18 req/min (rate=0.3, capacity=1).
+    concurrency = 2
     sem = asyncio.Semaphore(concurrency)
-    daily_tb = TokenBucket(rate=rate, capacity=capacity)
-    fund_tb = TokenBucket(rate=rate, capacity=capacity)
-    ca_tb = TokenBucket(rate=rate, capacity=capacity)
+    shared_tb = TokenBucket(rate=0.3, capacity=1)
+    daily_tb = shared_tb
+    fund_tb = shared_tb
+    ca_tb = shared_tb
 
     bucket_name = f"vn-market-lake-{env}"
     storage_client = storage.Client(project=project_id)
