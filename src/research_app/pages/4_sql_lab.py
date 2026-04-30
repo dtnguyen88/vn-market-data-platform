@@ -14,10 +14,18 @@ import plotly.express as px
 import streamlit as st
 from google.cloud import bigquery
 from research_app.auth import require_login
+from research_app.components.theme import apply_theme, page_header, sidebar_env_badges
 
-st.set_page_config(page_title="SQL Lab", layout="wide")
+st.set_page_config(page_title="SQL Lab", page_icon="🧪", layout="wide")
+apply_theme()
 require_login()
-st.title("SQL Lab")
+sidebar_env_badges()
+
+page_header(
+    "SQL Lab",
+    "Interactive BigQuery — query the lake, chart the result.",
+    icon="🧪",
+)
 
 PROJECT = os.environ.get("GCP_PROJECT_ID", "vn-market-platform-staging")
 DATASET = "vnmarket"

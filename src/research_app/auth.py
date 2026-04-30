@@ -18,6 +18,8 @@ from datetime import UTC, datetime, timedelta
 import extra_streamlit_components as stx
 import streamlit as st
 
+from research_app.components.theme import apply_theme
+
 _COOKIE_NAME = "vnmarket_auth"
 _COOKIE_DAYS = 30
 
@@ -60,12 +62,20 @@ def require_login() -> None:
         st.session_state["authenticated"] = True
         return
 
-    st.title("VN Market Research")
-    st.markdown("Sign in to continue.")
-    with st.form("login"):
-        user = st.text_input("Username (email)")
-        pwd = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Sign in")
+    apply_theme()
+    st.markdown(
+        """<div class="vm-login-wrap">
+            <div style="font-size:2.4rem; line-height:1; margin-bottom:.4rem;">📈</div>
+            <h2>VN Market Research</h2>
+            <p>Vietnam equities — daily, ticks, L2, factors.</p>
+        </div>""",
+        unsafe_allow_html=True,
+    )
+    _, mid, _ = st.columns([1, 2, 1])
+    with mid, st.form("login", clear_on_submit=False):
+        user = st.text_input("Email", placeholder="you@example.com")
+        pwd = st.text_input("Password", type="password", placeholder="••••••••")
+        submitted = st.form_submit_button("Sign in", type="primary", use_container_width=True)
     if submitted:
         if user == expected_user and pwd == expected_pass:
             st.session_state["authenticated"] = True

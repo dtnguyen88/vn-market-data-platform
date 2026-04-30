@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/shared /app/shared
 COPY src/vnmarket /app/vnmarket
 COPY src/research_app /app/research_app
+COPY .streamlit /app/.streamlit
 ENV PYTHONPATH=/app
 ENV PORT=8080
 EXPOSE 8080
