@@ -163,7 +163,10 @@ async def _run_daily(
             df = await asyncio.to_thread(pull_daily, symbol, chunk_start, chunk_end)
             if df.height == 0:
                 return rows, errors
-            # Group by date and write one file per (date, symbol)
+            # Group by date and parallel-upload one file per (date, symbol).
+            # GCS uploads aren't rate-limited by vnstock; fan out to cut wall time
+            # from sequential 1300 x 100ms = 130s per symbol to ~5s.
+            upload_tasks = []
             for d_val, group in df.group_by("date"):
                 d = d_val[0] if isinstance(d_val, tuple) else d_val
                 if hasattr(d, "isoformat"):
@@ -176,8 +179,9 @@ async def _run_daily(
                     f"raw/daily-ohlcv/source=vnstock/year={y}"
                     f"/date={d_str}/symbol={symbol}/part-0.parquet"
                 )
-                await asyncio.to_thread(_upload_parquet, bucket, key, group)
+                upload_tasks.append(asyncio.to_thread(_upload_parquet, bucket, key, group))
                 rows += group.height
+            await asyncio.gather(*upload_tasks)
         except Exception as e:
             log.warning("daily pull failed", symbol=symbol, error=str(e))
             errors.append(f"{symbol}: {e}")
@@ -209,15 +213,17 @@ async def _run_fundamentals(
             )
             if df.height == 0:
                 return rows, errors
-            # Group by period and write one file per (period, symbol)
+            # Parallel-upload one file per (period, symbol)
+            upload_tasks = []
             for (period_val,), group in df.group_by("period"):
                 period_str = str(period_val) if period_val is not None else "unknown"
                 key = (
                     f"raw/fundamentals/source=vnstock"
                     f"/quarter={period_str}/symbol={symbol}/part-0.parquet"
                 )
-                await asyncio.to_thread(_upload_parquet, bucket, key, group)
+                upload_tasks.append(asyncio.to_thread(_upload_parquet, bucket, key, group))
                 rows += group.height
+            await asyncio.gather(*upload_tasks)
         except Exception as e:
             log.warning("fundamentals pull failed", symbol=symbol, error=str(e))
             errors.append(f"{symbol}: {e}")
@@ -250,16 +256,18 @@ async def _run_corp_actions(
             )
             if df.height == 0:
                 return rows, errors
-            # Group by year of ex_date
+            # Parallel-upload one file per (year, symbol)
             df = df.with_columns(pl.col("ex_date").dt.year().alias("_year"))
+            upload_tasks = []
             for (year_val,), group in df.group_by("_year"):
                 group = group.drop("_year")
                 key = (
                     f"raw/corp-actions/source=vnstock/year={year_val}"
                     f"/symbol={symbol}/part-{chunk_start_iso}.parquet"
                 )
-                await asyncio.to_thread(_upload_parquet, bucket, key, group)
+                upload_tasks.append(asyncio.to_thread(_upload_parquet, bucket, key, group))
                 rows += group.height
+            await asyncio.gather(*upload_tasks)
         except Exception as e:
             log.warning("corp_actions pull failed", symbol=symbol, error=str(e))
             errors.append(f"{symbol}: {e}")
