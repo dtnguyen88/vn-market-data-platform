@@ -4,9 +4,11 @@ from io import BytesIO
 
 import pandas as pd
 import streamlit as st
+from research_app.auth import require_login
 from research_app.components.charts import equity_curve
 
 st.set_page_config(page_title="Backtest Viewer", layout="wide")
+require_login()
 st.title("Backtest Snapshot Viewer")
 
 uploaded = st.file_uploader(

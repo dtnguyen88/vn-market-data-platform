@@ -4,10 +4,12 @@ import os
 
 import streamlit as st
 import vnmarket as vm
+from research_app.auth import require_login
 from research_app.components.charts import price_volume_chart
 from research_app.components.filters import date_range_picker, symbol_picker
 
 st.set_page_config(page_title="Universe Explorer", layout="wide")
+require_login()
 st.title("Universe Explorer")
 
 symbols = symbol_picker(default=["VNM"])

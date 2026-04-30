@@ -11,11 +11,15 @@ import os
 
 import streamlit as st
 
+from research_app.auth import require_login
+
 st.set_page_config(
     page_title="VN Market Research",
     page_icon=":bar_chart:",
     layout="wide",
 )
+
+require_login()
 
 st.title("VN Market Research")
 st.write("Welcome. Use the left sidebar to navigate to a page.")

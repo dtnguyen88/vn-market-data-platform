@@ -5,8 +5,10 @@ from datetime import datetime
 
 import streamlit as st
 import vnmarket as vm
+from research_app.auth import require_login
 
 st.set_page_config(page_title="Microstructure Inspector", layout="wide")
+require_login()
 st.title("Microstructure Inspector")
 
 
