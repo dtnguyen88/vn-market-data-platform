@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/shared /app/shared
 COPY src/ops/coverage_check /app/ops/coverage_check
 ENV PYTHONPATH=/app
-CMD ["python", "-m", "ops.coverage_check"]
+ENTRYPOINT ["python", "-m", "ops.coverage_check"]

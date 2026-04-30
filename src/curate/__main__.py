@@ -86,13 +86,15 @@ def _build_uris(stream: str, target_date: date, env: str) -> tuple[str, str]:
         raw = f"gs://{bucket}/raw/indices/date={d}/**/*.parquet"
         curated = f"gs://{bucket}/curated/indices/date={d}/_curate_run.parquet"
     elif stream == "daily-ohlcv":
-        raw = f"gs://{bucket}/raw/daily-ohlcv/year={y}/date={d}/**/*.parquet"
+        # Recursive ** to handle both EOD layout (year=Y/date=D/) and backfill
+        # layout (source=vnstock/year=Y/date=D/).
+        raw = f"gs://{bucket}/raw/daily-ohlcv/**/*.parquet"
         curated = f"gs://{bucket}/curated/daily-ohlcv/year={y}/_curate_run.parquet"
     elif stream == "fundamentals":
         raw = f"gs://{bucket}/raw/fundamentals/**/*.parquet"
         curated = f"gs://{bucket}/curated/fundamentals/_curate_run.parquet"
     elif stream == "corp-actions":
-        raw = f"gs://{bucket}/raw/corp-actions/year={y}/**/*.parquet"
+        raw = f"gs://{bucket}/raw/corp-actions/**/*.parquet"
         curated = f"gs://{bucket}/curated/corp-actions/year={y}/_curate_run.parquet"
     else:
         raise ValueError(f"unknown stream: {stream}")

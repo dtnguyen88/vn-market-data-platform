@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/shared /app/shared
 COPY src/ops/cost_report /app/ops/cost_report
 ENV PYTHONPATH=/app
-CMD ["python", "-m", "ops.cost_report"]
+ENTRYPOINT ["python", "-m", "ops.cost_report"]

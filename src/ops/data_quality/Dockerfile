@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/shared /app/shared
 COPY src/ops/data_quality /app/ops/data_quality
 ENV PYTHONPATH=/app
-CMD ["python", "-m", "ops.data_quality"]
+ENTRYPOINT ["python", "-m", "ops.data_quality"]

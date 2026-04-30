@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/shared /app/shared
 COPY src/ops/dlq_drain /app/ops/dlq_drain
 ENV PYTHONPATH=/app
-CMD ["python", "-m", "ops.dlq_drain"]
+ENTRYPOINT ["python", "-m", "ops.dlq_drain"]

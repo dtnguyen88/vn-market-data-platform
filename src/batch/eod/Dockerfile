@@ -11,4 +11,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/shared /app/shared
 COPY src/batch /app/batch
 ENV PYTHONPATH=/app
-CMD ["python", "-m", "batch.eod"]
+ENTRYPOINT ["python", "-m", "batch.eod"]

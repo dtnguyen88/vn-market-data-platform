@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/shared /app/shared
 COPY src/ops/dlq_replay /app/ops/dlq_replay
 ENV PYTHONPATH=/app
-CMD ["python", "-m", "ops.dlq_replay"]
+ENTRYPOINT ["python", "-m", "ops.dlq_replay"]

@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/shared /app/shared
 COPY src/curate /app/curate
 ENV PYTHONPATH=/app
-CMD ["python", "-m", "curate"]
+ENTRYPOINT ["python", "-m", "curate"]
