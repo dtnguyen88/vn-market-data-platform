@@ -93,10 +93,20 @@ _CSS = f"""
     background: {PANEL};
     border: 1px solid {GRID};
     border-radius: 12px;
-    padding: 1rem 1.2rem;
+    padding: .9rem 1rem;
+    overflow: hidden;
   }}
-  div[data-testid="stMetricLabel"] {{ color: {MUTED}; font-size: .82rem; }}
-  div[data-testid="stMetricValue"] {{ color: {TEXT}; font-weight: 600; }}
+  div[data-testid="stMetricLabel"] {{ color: {MUTED}; font-size: .78rem; }}
+  div[data-testid="stMetricValue"] {{
+    color: {TEXT};
+    font-weight: 600;
+    font-size: 1.6rem;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }}
+  div[data-testid="stMetricDelta"] {{ font-size: .75rem; }}
 
   /* ---------- Plotly ---------- */
   .js-plotly-plot {{ border-radius: 10px; }}
@@ -207,8 +217,36 @@ def feature_card(icon: str, title: str, body: str) -> str:
     )
 
 
+_NAV_PAGES: list[tuple[str, str, str]] = [
+    ("__main__.py", "Home", "🏠"),
+    ("pages/1_universe_explorer.py", "Universe Explorer", "🔭"),
+    ("pages/5_market_movers.py", "Market Movers", "🚀"),
+    ("pages/2_microstructure.py", "Microstructure", "🔬"),
+    ("pages/3_backtest_viewer.py", "Backtest Viewer", "📉"),
+    ("pages/4_sql_lab.py", "SQL Lab", "🧪"),
+]
+
+
+def render_sidebar_nav() -> None:
+    """Render the custom sidebar nav (replaces Streamlit's auto-generated list).
+
+    Streamlit's default uses lowercase filename labels. We disable it via
+    .streamlit/config.toml `showSidebarNavigation = false` and render proper
+    labels + icons here.
+    """
+    st.sidebar.markdown(
+        f"""<div style="font-size:.7rem; color:{MUTED}; letter-spacing:.08em;
+        text-transform:uppercase; margin: .2rem 0 .4rem .25rem;">Navigate</div>""",
+        unsafe_allow_html=True,
+    )
+    for path, label, icon in _NAV_PAGES:
+        st.sidebar.page_link(path, label=label, icon=icon)
+    st.sidebar.markdown("---")
+
+
 def sidebar_env_badges() -> None:
-    """Render env + project badges in the sidebar."""
+    """Render the standard sidebar header (nav + env + project)."""
+    render_sidebar_nav()
     env = os.environ.get("ENV", "staging")
     project = os.environ.get("GCP_PROJECT_ID", "(unset)")
     st.sidebar.markdown(
