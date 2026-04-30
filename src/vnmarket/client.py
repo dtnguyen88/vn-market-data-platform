@@ -34,30 +34,22 @@ class Client:
         return f"gs://{self.bucket}/{path_within_bucket.lstrip('/')}"
 
     def daily(self, symbols: list[str], start: str | date, end: str | date) -> pl.DataFrame:
-        """Daily OHLCV for the given symbols and date range."""
+        """Daily OHLCV via BigQuery (handles both raw and curated layouts).
+
+        Reading via BQ is faster than scanning thousands of small parquets when
+        the lake holds per-day partitions; the external table fans out the read.
+        """
         sd = date.fromisoformat(start) if isinstance(start, str) else start
         ed = date.fromisoformat(end) if isinstance(end, str) else end
-        years = sorted({d.year for d in (sd, ed)})
-        frames: list[pl.DataFrame] = []
-        for y in years:
-            uri = self._gcs_glob(f"curated/daily-ohlcv/year={y}/**/*.parquet")
-            try:
-                df = (
-                    pl.scan_parquet(uri)
-                    .filter(
-                        (pl.col("date") >= sd)
-                        & (pl.col("date") <= ed)
-                        & pl.col("symbol").is_in(symbols)
-                    )
-                    .collect()
-                )
-            except Exception:  # noqa: S112
-                continue
-            if df.height > 0:
-                frames.append(df)
-        if not frames:
-            return pl.DataFrame()
-        return pl.concat(frames).sort(["symbol", "date"])
+        sym_list = ", ".join(f"'{s}'" for s in symbols)
+        query = (
+            f"SELECT date, symbol, asset_class, exchange, open, high, low, close, "  # noqa: S608
+            f"volume, value FROM `{self.project}.vnmarket.daily_ohlcv` "
+            f"WHERE date BETWEEN DATE('{sd.isoformat()}') AND DATE('{ed.isoformat()}') "
+            f"AND symbol IN ({sym_list}) "
+            f"ORDER BY symbol, date"
+        )
+        return self.sql(query)
 
     def ticks(self, symbol: str, on_date: str | date) -> pl.LazyFrame:
         """Lazy frame of ticks for one symbol on one date."""
