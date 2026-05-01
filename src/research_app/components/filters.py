@@ -16,8 +16,25 @@ def _bq() -> bigquery.Client:
 
 @st.cache_data(ttl=3600)
 def _all_symbols() -> list[str]:
-    """Distinct symbols from daily_ohlcv for autocomplete. Cached for an hour."""
-    project = os.environ.get("GCP_PROJECT_ID", "vn-market-platform-staging")
+    """All known VN tickers for autocomplete. Cached 1h.
+
+    Reads the canonical universe list from GCS (fast: ~10KB JSON) instead of
+    SELECT DISTINCT on the 470K-row external table (slow: 30s+ first call).
+    Falls back to BigQuery if the GCS object is missing.
+    """
+    env = os.environ.get("ENV", "staging")
+    project = os.environ.get("GCP_PROJECT_ID", f"vn-market-platform-{env}")
+    try:
+        from google.cloud import storage
+
+        bucket = storage.Client(project=project).bucket(f"vn-market-lake-{env}")
+        blob = bucket.blob("_ops/reference/eod-symbols.json")
+        import json as _json
+
+        data = _json.loads(blob.download_as_text())
+        return sorted({str(s).upper() for s in data})
+    except Exception:  # noqa: S110  graceful fallback to BQ below
+        pass
     try:
         rows = (
             _bq()
