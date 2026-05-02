@@ -155,12 +155,20 @@ async def _run_daily(
     """Pull daily OHLCV for one symbol across chunk range; write one Parquet per date."""
     from batch.eod.vnstock_pulls import pull_daily  # lazy
 
+    # Symbol-pattern → asset_class/exchange. VN30F* are derivatives traded on HNX.
+    if symbol.startswith("VN30F"):
+        asset_class, exchange = "future", "HNX"
+    else:
+        asset_class, exchange = "equity", "HOSE"
+
     rows = 0
     errors: list[str] = []
     async with sem:
         try:
             await tb.acquire()
-            df = await asyncio.to_thread(pull_daily, symbol, chunk_start, chunk_end)
+            df = await asyncio.to_thread(
+                pull_daily, symbol, chunk_start, chunk_end, asset_class, exchange
+            )
             if df.height == 0:
                 return rows, errors
             # Group by date and parallel-upload one file per (date, symbol).
