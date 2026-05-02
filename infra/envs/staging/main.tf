@@ -598,6 +598,47 @@ module "sched_monthly_cost_report" {
   request_body          = jsonencode({ env = "staging" })
 }
 
+# ─── Publisher market-hours auto-scaler ──────────────────────────────────────
+# Scales realtime-publisher-shard-{0..3} to 1 instance at market open, back
+# to 0 at market close. Saves ~16h/day of idle Cloud Run cost.
+# No-op until SSI credentials are populated and the publisher images are
+# (re)deployed — the workflow just patches min/max instances.
+
+module "wf_publisher_scaler" {
+  source                = "../../modules/workflow"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "publisher-scaler"
+  description           = "Scales publisher shards on/off around VN trading hours."
+  source_file_path      = "${local.workflows_path}/publisher-scaler.yaml"
+  service_account_email = module.service_accounts.emails["workflows"]
+  labels                = { env = "staging" }
+}
+
+module "sched_publisher_market_open" {
+  source                = "../../modules/scheduler"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "publisher-market-open-cron"
+  description           = "08:55 ICT Mon-Fri — scale publisher shards up before HOSE opens."
+  schedule              = "55 8 * * 1-5"
+  target_workflow_id    = module.wf_publisher_scaler.id
+  service_account_email = module.service_accounts.emails["workflows"]
+  request_body          = jsonencode({ action = "start", target_env = "staging" })
+}
+
+module "sched_publisher_market_close" {
+  source                = "../../modules/scheduler"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "publisher-market-close-cron"
+  description           = "15:05 ICT Mon-Fri — scale publisher shards down after HOSE closes."
+  schedule              = "5 15 * * 1-5"
+  target_workflow_id    = module.wf_publisher_scaler.id
+  service_account_email = module.service_accounts.emails["workflows"]
+  request_body          = jsonencode({ action = "stop", target_env = "staging" })
+}
+
 # ─── Alerter: Pub/Sub topic + Cloud Run service + push subscription ───────────
 
 # Pub/Sub topic for all platform alerts (workflows + monitoring channels publish here)

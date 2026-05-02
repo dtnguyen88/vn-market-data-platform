@@ -69,6 +69,7 @@ locals {
       display_name = "Workflows Orchestrator"
       roles = [
         "roles/run.invoker",
+        "roles/run.developer", # patch publisher-shard min-instances at market open/close
         "roles/workflows.invoker",
         "roles/storage.objectViewer",
         "roles/logging.logWriter",

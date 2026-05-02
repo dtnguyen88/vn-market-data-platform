@@ -1,0 +1,59 @@
+# publisher-scaler.yaml
+#
+# Scales the 4 realtime-publisher-shard-N Cloud Run services to min=max=1
+# at market open and back to 0 at market close. VN market hours (ICT):
+#   morning   09:00-11:30
+#   afternoon 13:00-15:00
+# We keep instances up across the lunch break (avoid WS reconnect churn).
+#
+# Args:
+#   action: "start" | "stop"  (required)
+#   target_env: "staging" | "prod"  (default: staging)
+#
+# IAM: workflows-sa needs roles/run.developer on the project (granted via
+# modules/service-accounts).
+
+main:
+  params: [args]
+  steps:
+    - init:
+        assign:
+          - action: ${default(map.get(args, "action"), "start")}
+          - target_env: ${default(map.get(args, "target_env"), "staging")}
+          - project_id: ${"vn-market-platform-" + target_env}
+          - location: "asia-southeast1"
+          - n: ${if(action == "start", 1, 0)}
+
+    - log_intent:
+        call: sys.log
+        args:
+          severity: "INFO"
+          text: ${"publisher-scaler action=" + action + " min=max=" + string(n)}
+
+    - scale_all_shards:
+        parallel:
+          for:
+            value: shard
+            in: [0, 1, 2, 3]
+            steps:
+              - patch_shard:
+                  call: googleapis.run.v2.projects.locations.services.patch
+                  args:
+                    name: ${"projects/" + project_id + "/locations/" + location + "/services/realtime-publisher-shard-" + string(shard)}
+                    updateMask: "template.scaling"
+                    body:
+                      template:
+                        scaling:
+                          minInstanceCount: ${n}
+                          maxInstanceCount: ${n}
+                  result: patch_result
+              - log_shard:
+                  call: sys.log
+                  args:
+                    severity: "INFO"
+                    text: ${"shard " + string(shard) + " patched"}
+
+    - done:
+        return:
+          action: ${action}
+          shards_scaled_to: ${n}
