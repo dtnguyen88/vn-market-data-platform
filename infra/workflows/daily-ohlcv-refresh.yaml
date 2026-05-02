@@ -1,0 +1,51 @@
+# daily-ohlcv-refresh.yaml
+#
+# Rebuilds the native partitioned/clustered table `vnmarket.daily_ohlcv_native`
+# from the external (BigLake) table `vnmarket.daily_ohlcv_external` so the
+# `vnmarket.daily_ohlcv` view (which selects from native) sees newly landed
+# parquets in GCS.
+#
+# Why CREATE OR REPLACE instead of incremental MERGE: simpler + idempotent +
+# fast (~30s for ~2M rows). At the current data volume this beats maintaining
+# a watermark / dedup against the external table.
+#
+# Args:
+#   target_env: "staging" | "prod" (default: staging)
+#
+# Schedule: 16:30 ICT Mon-Fri (after EOD pipeline at 16:00).
+
+main:
+  params: [args]
+  steps:
+    - init:
+        assign:
+          - target_env: ${default(map.get(args, "target_env"), "staging")}
+          - project_id: ${"vn-market-platform-" + target_env}
+          - sql: >
+              CREATE OR REPLACE TABLE
+                `${project_id}.vnmarket.daily_ohlcv_native`
+              PARTITION BY date
+              CLUSTER BY symbol
+              AS SELECT date, symbol, asset_class, exchange,
+                        open, high, low, close, volume, value
+              FROM `${project_id}.vnmarket.daily_ohlcv_external`
+
+    - run_refresh:
+        call: googleapis.bigquery.v2.jobs.query
+        args:
+          projectId: ${project_id}
+          body:
+            query: ${sql}
+            useLegacySql: false
+        result: refresh_result
+
+    - log_done:
+        call: sys.log
+        args:
+          severity: "INFO"
+          text: ${"daily_ohlcv_native refreshed for env=" + target_env}
+
+    - done:
+        return:
+          env: ${target_env}
+          status: "ok"

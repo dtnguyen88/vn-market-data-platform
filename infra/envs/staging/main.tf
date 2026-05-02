@@ -639,6 +639,34 @@ module "sched_publisher_market_close" {
   request_body          = jsonencode({ action = "stop", target_env = "staging" })
 }
 
+# ─── daily_ohlcv_native refresh ──────────────────────────────────────────────
+# Rebuilds the native partitioned/clustered table from the BigLake external
+# table every weekday after EOD pipeline finishes, so the daily_ohlcv view
+# (which the SDK + UI both read) sees newly landed parquets.
+
+module "wf_daily_ohlcv_refresh" {
+  source                = "../../modules/workflow"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "daily-ohlcv-refresh"
+  description           = "Rebuilds daily_ohlcv_native from BigLake external table."
+  source_file_path      = "${local.workflows_path}/daily-ohlcv-refresh.yaml"
+  service_account_email = module.service_accounts.emails["workflows"]
+  labels                = { env = "staging" }
+}
+
+module "sched_daily_ohlcv_refresh" {
+  source                = "../../modules/scheduler"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "daily-ohlcv-refresh-cron"
+  description           = "16:30 ICT Mon-Fri — refresh native table after EOD pipeline."
+  schedule              = "30 16 * * 1-5"
+  target_workflow_id    = module.wf_daily_ohlcv_refresh.id
+  service_account_email = module.service_accounts.emails["workflows"]
+  request_body          = jsonencode({ target_env = "staging" })
+}
+
 # ─── Alerter: Pub/Sub topic + Cloud Run service + push subscription ───────────
 
 # Pub/Sub topic for all platform alerts (workflows + monitoring channels publish here)

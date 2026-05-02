@@ -74,6 +74,8 @@ locals {
         "roles/storage.objectViewer",
         "roles/logging.logWriter",
         "roles/monitoring.metricWriter",
+        "roles/bigquery.dataEditor", # CREATE OR REPLACE daily_ohlcv_native
+        "roles/bigquery.jobUser",    # run BQ jobs from workflows
       ]
     }
   }
