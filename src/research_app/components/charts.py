@@ -78,8 +78,8 @@ def price_volume_chart(df, title: str = "") -> go.Figure:
     if title:
         layout_kwargs["title"] = title
     fig.update_layout(**layout_kwargs)
-    fig.update_yaxes(title_text="Price", row=1, col=1)
-    fig.update_yaxes(title_text="Volume", row=2, col=1)
+    fig.update_yaxes(title_text="Price (kVND)", row=1, col=1)
+    fig.update_yaxes(title_text="Volume (shares)", row=2, col=1)
     return fig
 
 

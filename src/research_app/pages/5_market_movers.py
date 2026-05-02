@@ -120,8 +120,8 @@ def _format_table(df: pd.DataFrame) -> None:
         column_config={
             "symbol": "Symbol",
             "last_date": "Date",
-            "last_close": st.column_config.NumberColumn("Close", format="%,.0f"),
-            "ref_close": st.column_config.NumberColumn("Ref close", format="%,.0f"),
+            "last_close": st.column_config.NumberColumn("Close (kVND)", format="%,.2f"),
+            "ref_close": st.column_config.NumberColumn("Ref close (kVND)", format="%,.2f"),
             "pct_change": st.column_config.NumberColumn("% chg", format="%+.2f%%"),
             "last_volume": st.column_config.NumberColumn("Last vol", format="%,.0f"),
             "avg_vol": st.column_config.NumberColumn("Avg vol", format="%,.0f"),

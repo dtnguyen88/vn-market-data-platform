@@ -135,7 +135,7 @@ if len(symbols) > 1:
             hide_index=True,
             column_config={
                 "symbol": "Symbol",
-                "last": st.column_config.NumberColumn("Last", format="%,.0f"),
+                "last": st.column_config.NumberColumn("Last (kVND)", format="%,.2f"),
                 "period_pct": st.column_config.NumberColumn("Period %", format="%+.2f%%"),
                 "max_dd_pct": st.column_config.NumberColumn("Max DD %", format="%.2f%%"),
                 "sharpe": st.column_config.NumberColumn("Sharpe", format="%.2f"),
@@ -163,9 +163,9 @@ lo = sub["low"].min() if "low" in sub.columns else sub["close"].min()
 
 st.markdown(f"### {sym}")
 m1, m2, m3, m4 = st.columns(4)
-m1.metric("Last close", f"{last['close']:,.0f}", f"{chg_pct:+.2f}%")
-m2.metric("Period high", f"{hi:,.0f}")
-m3.metric("Period low", f"{lo:,.0f}")
+m1.metric("Last (kVND)", f"{last['close']:,.2f}", f"{chg_pct:+.2f}%")
+m2.metric("High (kVND)", f"{hi:,.2f}")
+m3.metric("Low (kVND)", f"{lo:,.2f}")
 m4.metric("Avg volume", _fmt_compact(avg_vol))
 
 st.plotly_chart(price_volume_chart(sub), use_container_width=True)
