@@ -1,31 +1,41 @@
-"""SSI Level-1 quote message → QuoteL1 model.
+"""SSI v3 quote.<sym> wire dict → QuoteL1 (best bid/ask only).
 
-SSI WS payload keys:
-  S=symbol, T=timestamp_ms, EX=exchange,
-  BP=bid_price, BV=bid_volume, AP=ask_price, AV=ask_volume.
-
-mid_price and spread_bps are computed by QuoteL1.model_validator automatically.
+L1 is derived from L2 wire data — SSI doesn't emit a separate L1 stream.
+This parser produces a QuoteL1 in parallel with the QuoteL2 produced by
+quotes_l2 (publisher publishes to both topics from one wire frame).
 """
+
+from __future__ import annotations
 
 from datetime import datetime
 
-from shared.schemas import Exchange, QuoteL1
+from shared.schemas import AssetClass, Exchange, QuoteL1
 
-from .base import epoch_ms_to_dt
-from .ticks import _classify
+from .base import classify_asset, default_exchange, parse_ssi_ts, to_int
 
 
-def parse_quote_l1(raw: dict, ts_received: datetime) -> QuoteL1:
-    """Parse a raw SSI L1 quote dict into a validated QuoteL1 model."""
-    sym = raw["S"]
+def parse_quote_l1(
+    data: dict,
+    ts_received: datetime,
+    *,
+    asset_class: AssetClass | None = None,
+    exchange: Exchange | None = None,
+) -> QuoteL1:
+    sym = data["s"]
+    ac = asset_class or classify_asset(sym)
+    ex = exchange or default_exchange(ac)
+
+    bids = data.get("bids") or [[0, 0]]
+    asks = data.get("asks") or [[0, 0]]
+
     return QuoteL1(
-        ts_event=epoch_ms_to_dt(raw["T"]),
+        ts_event=parse_ssi_ts(data["t"]),
         ts_received=ts_received,
         symbol=sym,
-        asset_class=_classify(sym),
-        exchange=Exchange(raw.get("EX", "HOSE")),
-        bid_price=int(raw.get("BP", 0)),
-        bid_size=int(raw.get("BV", 0)),
-        ask_price=int(raw.get("AP", 0)),
-        ask_size=int(raw.get("AV", 0)),
+        asset_class=ac,
+        exchange=ex,
+        bid_price=to_int(bids[0][0]),
+        bid_size=to_int(bids[0][1]),
+        ask_price=to_int(asks[0][0]),
+        ask_size=to_int(asks[0][1]),
     )

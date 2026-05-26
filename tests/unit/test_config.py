@@ -1,4 +1,4 @@
-"""Unit tests for publisher.config — env var parsing."""
+"""Unit tests for publisher.config — env var parsing (SSI v3 secret names)."""
 
 import pytest
 from publisher.config import Config
@@ -16,8 +16,9 @@ def test_from_env_required_fields(monkeypatch):
     assert cfg.project_id == "p"
     assert cfg.shard == 2
     assert cfg.env == "staging"
-    assert cfg.ssi_username_secret == "ssi-fc-username"  # default  # pragma: allowlist secret
-    assert cfg.ssi_password_secret == "ssi-fc-password"  # default  # pragma: allowlist secret
+    assert cfg.ssi_api_key_secret == "ssi-fc-api-key"  # default  # pragma: allowlist secret
+    assert cfg.ssi_api_secret_secret == "ssi-fc-api-secret"  # default  # pragma: allowlist secret
+    assert cfg.ssi_private_key_secret == "ssi-fc-rsa-private-key"  # pragma: allowlist secret
     assert cfg.symbols_url.startswith("gs://")
 
 
@@ -27,11 +28,13 @@ def test_from_env_secret_overrides(monkeypatch):
     monkeypatch.setenv("SHARD", "0")
     monkeypatch.setenv("ENV", "test")
     monkeypatch.setenv("SYMBOLS_URL", "gs://b/s.json")
-    monkeypatch.setenv("SSI_USERNAME_SECRET", "custom-user")  # pragma: allowlist secret
-    monkeypatch.setenv("SSI_PASSWORD_SECRET", "custom-pwd")  # pragma: allowlist secret
+    monkeypatch.setenv("SSI_API_KEY_SECRET", "custom-key")  # pragma: allowlist secret
+    monkeypatch.setenv("SSI_API_SECRET_SECRET", "custom-secret")  # pragma: allowlist secret
+    monkeypatch.setenv("SSI_PRIVATE_KEY_SECRET", "custom-pk")  # pragma: allowlist secret
     cfg = Config.from_env()
-    assert cfg.ssi_username_secret == "custom-user"  # pragma: allowlist secret
-    assert cfg.ssi_password_secret == "custom-pwd"  # pragma: allowlist secret
+    assert cfg.ssi_api_key_secret == "custom-key"  # pragma: allowlist secret
+    assert cfg.ssi_api_secret_secret == "custom-secret"  # pragma: allowlist secret
+    assert cfg.ssi_private_key_secret == "custom-pk"  # pragma: allowlist secret
 
 
 @pytest.mark.unit

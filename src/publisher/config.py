@@ -1,4 +1,9 @@
-"""Publisher config. All env vars."""
+"""Publisher config. All env vars.
+
+Secret names changed for SSI FastConnect v3 (2026-05-26):
+  v2 names (deprecated): ssi-fc-username, ssi-fc-password
+  v3 names (current):    ssi-fc-api-key, ssi-fc-api-secret, ssi-fc-rsa-private-key
+"""
 
 import os
 from dataclasses import dataclass
@@ -9,8 +14,9 @@ class Config:
     project_id: str
     shard: int
     env: str
-    ssi_username_secret: str
-    ssi_password_secret: str
+    ssi_api_key_secret: str
+    ssi_api_secret_secret: str
+    ssi_private_key_secret: str
     symbols_url: str  # e.g. gs://vn-market-lake-{env}/_ops/reference/symbols-shard-{N}.json
 
     @classmethod
@@ -19,7 +25,10 @@ class Config:
             project_id=os.environ["GCP_PROJECT_ID"],
             shard=int(os.environ["SHARD"]),
             env=os.environ["ENV"],
-            ssi_username_secret=os.environ.get("SSI_USERNAME_SECRET", "ssi-fc-username"),
-            ssi_password_secret=os.environ.get("SSI_PASSWORD_SECRET", "ssi-fc-password"),
+            ssi_api_key_secret=os.environ.get("SSI_API_KEY_SECRET", "ssi-fc-api-key"),
+            ssi_api_secret_secret=os.environ.get("SSI_API_SECRET_SECRET", "ssi-fc-api-secret"),
+            ssi_private_key_secret=os.environ.get(
+                "SSI_PRIVATE_KEY_SECRET", "ssi-fc-rsa-private-key"
+            ),
             symbols_url=os.environ["SYMBOLS_URL"],
         )

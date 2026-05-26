@@ -1,9 +1,7 @@
-"""SSI v3 quote.<sym> wire dict → QuoteL2.
+"""SSI v3 oddlot.<sym> wire dict → OddLotSnapshot.
 
-Wire (4 keys): s, t, bids:[[p,v]…10], asks:[[p,v]…10].
-SSI always pads to 10 levels with `["0","0"]` for empty levels — empty
-slots arrive as price=0 size=0 which we store as None (matches schema's
-"no resting order at that depth" semantic).
+Odd-lot book is thin (typically ≤3 levels); we record up to 3 per side.
+Wire keys: s, t, p, q, bids:[[p,v]…], asks:[[p,v]…].
 """
 
 from __future__ import annotations
@@ -11,15 +9,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from shared.schemas import AssetClass, Exchange, QuoteL2
+from shared.schemas import AssetClass, Exchange, OddLotSnapshot
 
 from .base import classify_asset, default_exchange, parse_ssi_ts, to_int
 
 
-def _level_fields(prefix: str, levels: list[Any]) -> dict[str, int | None]:
-    """Convert [[p,v]…N] → {prefix_px_1:..., prefix_sz_1:..., …}; 0 → None."""
+def _shallow_levels(prefix: str, levels: list[Any]) -> dict[str, int | None]:
     out: dict[str, int | None] = {}
-    for i in range(1, 11):
+    for i in range(1, 4):  # 3 levels only
         if i - 1 < len(levels):
             p = to_int(levels[i - 1][0])
             s = to_int(levels[i - 1][1])
@@ -30,24 +27,25 @@ def _level_fields(prefix: str, levels: list[Any]) -> dict[str, int | None]:
     return out
 
 
-def parse_quote_l2(
+def parse_odd_lot(
     data: dict,
     ts_received: datetime,
     *,
     asset_class: AssetClass | None = None,
     exchange: Exchange | None = None,
-) -> QuoteL2:
+) -> OddLotSnapshot:
     sym = data["s"]
     ac = asset_class or classify_asset(sym)
     ex = exchange or default_exchange(ac)
-
     fields = {
         "ts_event": parse_ssi_ts(data["t"]),
         "ts_received": ts_received,
         "symbol": sym,
         "asset_class": ac,
         "exchange": ex,
-        **_level_fields("bid", data.get("bids", [])),
-        **_level_fields("ask", data.get("asks", [])),
+        "last_price": to_int(data.get("p")),
+        "last_qty": to_int(data.get("q")),
+        **_shallow_levels("bid", data.get("bids", [])),
+        **_shallow_levels("ask", data.get("asks", [])),
     }
-    return QuoteL2(**fields)
+    return OddLotSnapshot(**fields)

@@ -1,14 +1,20 @@
-"""Pydantic v2 schemas for the 4 VN Market realtime stream types.
+"""Pydantic v2 schemas for SSI FastConnect v3 realtime streams.
 
-Used at two boundaries:
-  - publisher → Pub/Sub (serialise to JSON message body)
-  - writer → schema_validator (deserialise + validate before Parquet write)
+Schema design notes (2026-05-26, post-probe):
+  * Tick is a **1-second snapshot per symbol** (not per-match). SSI emits one
+    `trade.<sym>` event per ~1s carrying session OHL + avg + cumulative volume
+    PLUS the most-recent match (`last_price`/`last_qty`/`last_side`, zero when
+    no match occurred in the window). Original "per-match" semantics retained
+    via `last_*` fields, with a synthesized `trade_id` when a match is present.
+  * QuoteL2 carries 10 price levels per side (server-padded with zeros). SSI
+    sends `[price, volume]` pairs only — no order-count per level, so we don't
+    model `bid_n_N`/`ask_n_N`.
+  * Prices are stored as `int` in **whole VND** (NOT 1/10 VND as earlier docs
+    claimed). Confirmed from live probe: HPG bid 24150 = 24,150 VND.
+  * `IndexValue` is fed by REST polling, not the stream — SSI's WS does not
+    surface realtime index value updates.
 
-All models are frozen (immutable) so they can be used as dict keys.
-All datetimes must be timezone-aware.
-Numeric fields ≥ 0 except IndexValue.change / IndexValue.change_pct.
-
-Schema version is a ClassVar — not serialised as a Pydantic field.
+All models are frozen; datetimes timezone-aware; schema_version a ClassVar.
 """
 
 from __future__ import annotations
@@ -25,16 +31,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class AssetClass(StrEnum):
-    """Tradeable asset class on VN exchanges."""
-
     EQUITY = "equity"
     FUTURE = "future"
     INDEX = "index"
 
 
 class Exchange(StrEnum):
-    """VN exchange identifiers."""
-
     HOSE = "HOSE"
     HNX = "HNX"
     UPCOM = "UPCoM"
@@ -42,7 +44,7 @@ class Exchange(StrEnum):
 
 
 class MatchType(StrEnum):
-    """Auction / matching session type for a trade."""
+    """Auction / matching session type. Defaulted by publisher per session-time."""
 
     ATO = "ATO"
     CONTINUOUS = "continuous"
@@ -51,59 +53,72 @@ class MatchType(StrEnum):
 
 
 class Side(StrEnum):
-    """Trade aggressor side."""
-
     BUY = "B"
     SELL = "S"
     UNKNOWN = "?"
 
 
 # ---------------------------------------------------------------------------
-# Shared base — common header fields across all stream types
+# Shared base
 # ---------------------------------------------------------------------------
 
 
 class _MarketBase(BaseModel):
-    """Common header fields shared by Tick, QuoteL1, and QuoteL2."""
-
     model_config = ConfigDict(frozen=True)
 
-    ts_event: datetime = Field(description="Event timestamp (timezone-aware, Asia/Ho_Chi_Minh)")
-    ts_received: datetime = Field(description="Ingest timestamp (UTC)")
-    symbol: str = Field(description="Ticker symbol, e.g. 'VNM'")
+    ts_event: datetime = Field(description="SSI event time, Asia/Ho_Chi_Minh, second-precision")
+    ts_received: datetime = Field(description="Ingest time (UTC)")
+    symbol: str
     asset_class: AssetClass
     exchange: Exchange
 
 
 # ---------------------------------------------------------------------------
-# Tick — individual matched trade record
+# Tick — 1-second snapshot per symbol (session OHL + cum-vol + last match)
 # ---------------------------------------------------------------------------
 
 
 class Tick(_MarketBase):
-    """Single matched trade event from SSI realtime feed."""
+    """SSI v3 1-second trade snapshot.
 
-    schema_version: ClassVar[str] = "1"
+    `last_price`/`last_qty`/`last_side` describe the most recent match in
+    the 1s window. They are zero/UNKNOWN when no match occurred — most
+    events outside the match-heavy continuous phase fall into this bucket
+    and are still valuable because they carry updated session OHL/avg/vol.
 
-    price: int = Field(ge=0, description="Trade price in 1/10 VND units")
-    volume: int = Field(ge=0, description="Matched volume (shares)")
-    match_type: MatchType
-    side: Side
-    trade_id: str = Field(description="Exchange trade id — dedup key")
-    seq: int = Field(ge=0, description="SSI sequence number")
+    `trade_id` is synthesized as `sha1(symbol|ts_event|last_price|last_qty|
+    last_side)[:16]` *only* when `last_qty > 0`; otherwise None.
+    """
+
+    schema_version: ClassVar[str] = "2"  # bumped from v1 (per-match) to v2 (snapshot)
+
+    # Session OHL + avg (all VND, int except avg which is float)
+    open: int = Field(ge=0, description="Session open price")
+    high: int = Field(ge=0, description="Session high price")
+    low: int = Field(ge=0, description="Session low price")
+    avg_price: float = Field(ge=0.0, description="Session VWAP")
+    total_volume: int = Field(ge=0, description="Cumulative session volume (shares)")
+
+    # Last match in window (0 / UNKNOWN if none)
+    last_price: int = Field(ge=0, description="Last match price; 0 if no match in window")
+    last_qty: int = Field(ge=0, description="Last match volume; 0 if no match in window")
+    last_side: Side = Field(default=Side.UNKNOWN)
+    match_type: MatchType = Field(default=MatchType.CONTINUOUS)
+
+    trade_id: str | None = Field(
+        default=None, description="sha1 of {sym|ts|p|q|si} when last_qty>0"
+    )
 
 
 # ---------------------------------------------------------------------------
-# QuoteL1 — best bid / ask snapshot with derived mid/spread
+# QuoteL1 — derived from L2[0] at parser time (no separate wire stream)
 # ---------------------------------------------------------------------------
 
 
 class QuoteL1(_MarketBase):
-    """Level-1 quote snapshot with computed mid_price and spread_bps.
+    """Best bid/ask snapshot. Mid + spread computed after construction.
 
-    mid_price  = (bid_price + ask_price) // 2  (None if either side missing)
-    spread_bps = round(10000 * (ask_price - bid_price) / mid_price)
-                 (None when mid_price is 0 or either side missing)
+    `mid_price`/`spread_bps` are None when either side is missing.
     """
 
     schema_version: ClassVar[str] = "1"
@@ -113,156 +128,160 @@ class QuoteL1(_MarketBase):
     ask_price: int = Field(ge=0)
     ask_size: int = Field(ge=0)
 
-    # Computed after construction via model_validator — default None
     mid_price: int | None = Field(default=None, ge=0)
     spread_bps: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def _compute_derived(self) -> QuoteL1:
-        """Compute mid_price and spread_bps from bid/ask after field validation."""
-        bid = self.bid_price
-        ask = self.ask_price
-
+        bid, ask = self.bid_price, self.ask_price
         if bid and ask:
             mid = (bid + ask) // 2
             spread = round(10000 * (ask - bid) / mid) if mid > 0 else None
-            # frozen=True: bypass immutability for internal derived fields
             object.__setattr__(self, "mid_price", mid)
             object.__setattr__(self, "spread_bps", spread)
-        else:
-            object.__setattr__(self, "mid_price", None)
-            object.__setattr__(self, "spread_bps", None)
-
         return self
 
 
 # ---------------------------------------------------------------------------
-# QuoteL2 — full 10-level order book snapshot (60 numeric fields)
+# QuoteL2 — full 10-level book (40 numeric fields; SSI gives px+vol only)
 # ---------------------------------------------------------------------------
+
+
+def _level_fields(prefix: str) -> dict[str, tuple]:
+    """Build the 20 (price, size) field declarations for one book side."""
+    out: dict[str, tuple] = {}
+    for i in range(1, 11):
+        out[f"{prefix}_px_{i}"] = (int | None, Field(default=None, ge=0))
+        out[f"{prefix}_sz_{i}"] = (int | None, Field(default=None, ge=0))
+    return out
 
 
 class QuoteL2(_MarketBase):
-    """Level-2 order book snapshot — 10 price levels per side.
+    """10-level order book snapshot. SSI sends 10 fixed levels, padded with 0s.
 
-    Fields are Optional[int] because books may have fewer than 10 levels.
-    bid_px_N  — bid price at level N (1=best)
-    bid_sz_N  — bid size at level N
-    bid_n_N   — number of orders at bid level N
-    ask_px_N  — ask price at level N (1=best)
-    ask_sz_N  — ask size at level N
-    ask_n_N   — number of orders at ask level N
+    A level with `bid_px_N == 0` indicates no resting order at that depth.
     """
 
-    schema_version: ClassVar[str] = "1"
+    schema_version: ClassVar[str] = "2"  # bumped: dropped bid_n_*/ask_n_* (SSI doesn't send)
 
-    # --- bid side ---
+    # bid side — 10 levels of (price, size)
     bid_px_1: int | None = Field(default=None, ge=0)
     bid_sz_1: int | None = Field(default=None, ge=0)
-    bid_n_1: int | None = Field(default=None, ge=0)
-
     bid_px_2: int | None = Field(default=None, ge=0)
     bid_sz_2: int | None = Field(default=None, ge=0)
-    bid_n_2: int | None = Field(default=None, ge=0)
-
     bid_px_3: int | None = Field(default=None, ge=0)
     bid_sz_3: int | None = Field(default=None, ge=0)
-    bid_n_3: int | None = Field(default=None, ge=0)
-
     bid_px_4: int | None = Field(default=None, ge=0)
     bid_sz_4: int | None = Field(default=None, ge=0)
-    bid_n_4: int | None = Field(default=None, ge=0)
-
     bid_px_5: int | None = Field(default=None, ge=0)
     bid_sz_5: int | None = Field(default=None, ge=0)
-    bid_n_5: int | None = Field(default=None, ge=0)
-
     bid_px_6: int | None = Field(default=None, ge=0)
     bid_sz_6: int | None = Field(default=None, ge=0)
-    bid_n_6: int | None = Field(default=None, ge=0)
-
     bid_px_7: int | None = Field(default=None, ge=0)
     bid_sz_7: int | None = Field(default=None, ge=0)
-    bid_n_7: int | None = Field(default=None, ge=0)
-
     bid_px_8: int | None = Field(default=None, ge=0)
     bid_sz_8: int | None = Field(default=None, ge=0)
-    bid_n_8: int | None = Field(default=None, ge=0)
-
     bid_px_9: int | None = Field(default=None, ge=0)
     bid_sz_9: int | None = Field(default=None, ge=0)
-    bid_n_9: int | None = Field(default=None, ge=0)
-
     bid_px_10: int | None = Field(default=None, ge=0)
     bid_sz_10: int | None = Field(default=None, ge=0)
-    bid_n_10: int | None = Field(default=None, ge=0)
-
-    # --- ask side ---
+    # ask side — 10 levels of (price, size)
     ask_px_1: int | None = Field(default=None, ge=0)
     ask_sz_1: int | None = Field(default=None, ge=0)
-    ask_n_1: int | None = Field(default=None, ge=0)
-
     ask_px_2: int | None = Field(default=None, ge=0)
     ask_sz_2: int | None = Field(default=None, ge=0)
-    ask_n_2: int | None = Field(default=None, ge=0)
-
     ask_px_3: int | None = Field(default=None, ge=0)
     ask_sz_3: int | None = Field(default=None, ge=0)
-    ask_n_3: int | None = Field(default=None, ge=0)
-
     ask_px_4: int | None = Field(default=None, ge=0)
     ask_sz_4: int | None = Field(default=None, ge=0)
-    ask_n_4: int | None = Field(default=None, ge=0)
-
     ask_px_5: int | None = Field(default=None, ge=0)
     ask_sz_5: int | None = Field(default=None, ge=0)
-    ask_n_5: int | None = Field(default=None, ge=0)
-
     ask_px_6: int | None = Field(default=None, ge=0)
     ask_sz_6: int | None = Field(default=None, ge=0)
-    ask_n_6: int | None = Field(default=None, ge=0)
-
     ask_px_7: int | None = Field(default=None, ge=0)
     ask_sz_7: int | None = Field(default=None, ge=0)
-    ask_n_7: int | None = Field(default=None, ge=0)
-
     ask_px_8: int | None = Field(default=None, ge=0)
     ask_sz_8: int | None = Field(default=None, ge=0)
-    ask_n_8: int | None = Field(default=None, ge=0)
-
     ask_px_9: int | None = Field(default=None, ge=0)
     ask_sz_9: int | None = Field(default=None, ge=0)
-    ask_n_9: int | None = Field(default=None, ge=0)
-
     ask_px_10: int | None = Field(default=None, ge=0)
     ask_sz_10: int | None = Field(default=None, ge=0)
-    ask_n_10: int | None = Field(default=None, ge=0)
 
 
 # ---------------------------------------------------------------------------
-# IndexValue — index snapshot (VNINDEX, VN30, etc.)
+# IndexValue — populated via REST `/api/v3/data/indexSummary` polling
 # ---------------------------------------------------------------------------
 
 
 class IndexValue(BaseModel):
-    """Index snapshot — no symbol/asset_class/exchange header like equity streams."""
-
     model_config = ConfigDict(frozen=True)
+    schema_version: ClassVar[str] = "1"
+
+    ts_event: datetime
+    ts_received: datetime
+    index_code: str = Field(description="e.g. 'VNINDEX', 'VN30'")
+    exchange: Exchange
+
+    value: float = Field(ge=0.0)
+    change: float
+    change_pct: float
+    total_volume: int = Field(ge=0)
+    total_value: int = Field(ge=0)
+    advance_count: int = Field(ge=0)
+    decline_count: int = Field(ge=0)
+    unchanged_count: int = Field(ge=0)
+
+
+# ---------------------------------------------------------------------------
+# New SSI v3 streams: ForeignRoom, PutThrough, OddLot
+# ---------------------------------------------------------------------------
+
+
+class ForeignRoomSnapshot(_MarketBase):
+    """Foreign-investor room snapshot for an equity (topic: `room.<sym>`)."""
 
     schema_version: ClassVar[str] = "1"
 
-    ts_event: datetime = Field(description="Event timestamp (timezone-aware)")
-    ts_received: datetime = Field(description="Ingest timestamp (UTC)")
-    index_code: str = Field(description="Index code, e.g. 'VNINDEX', 'VN30'")
-    exchange: Exchange
+    total_room: int = Field(ge=0, description="Foreign-ownership ceiling (shares)")
+    current_room: int = Field(ge=0, description="Foreign holdings (shares)")
+    buy_qty: int = Field(ge=0, description="Today foreign buy volume")
+    buy_value: int = Field(ge=0, description="Today foreign buy value (VND)")
+    sell_qty: int = Field(ge=0)
+    sell_value: int = Field(ge=0)
 
-    value: float = Field(ge=0.0, description="Index value in points")
-    # change and change_pct can be negative — no ge constraint
-    change: float = Field(description="Point change from prior close")
-    change_pct: float = Field(description="Percentage change from prior close")
 
-    total_volume: int = Field(ge=0, description="Total market volume")
-    total_value: int = Field(ge=0, description="Total market value in VND")
+class PutThrough(_MarketBase):
+    """Put-through (block / negotiated deal) event (topic: `put.<sym>`)."""
 
-    advance_count: int = Field(ge=0, description="Number of advancing issues")
-    decline_count: int = Field(ge=0, description="Number of declining issues")
-    unchanged_count: int = Field(ge=0, description="Number of unchanged issues")
+    schema_version: ClassVar[str] = "1"
+
+    price: int = Field(ge=0)
+    qty: int = Field(ge=0)
+    total_qty: int = Field(ge=0, description="Cum put-through volume for the day")
+    total_value: int = Field(ge=0, description="Cum put-through value (VND)")
+
+
+class OddLotSnapshot(_MarketBase):
+    """Odd-lot segment snapshot: last-match + best bid/ask (topic: `oddlot.<sym>`).
+
+    Odd-lot books are typically very thin; we record up to 3 levels per side
+    to match the depth SSI sends for this segment.
+    """
+
+    schema_version: ClassVar[str] = "1"
+
+    last_price: int = Field(ge=0)
+    last_qty: int = Field(ge=0)
+
+    bid_px_1: int | None = Field(default=None, ge=0)
+    bid_sz_1: int | None = Field(default=None, ge=0)
+    bid_px_2: int | None = Field(default=None, ge=0)
+    bid_sz_2: int | None = Field(default=None, ge=0)
+    bid_px_3: int | None = Field(default=None, ge=0)
+    bid_sz_3: int | None = Field(default=None, ge=0)
+    ask_px_1: int | None = Field(default=None, ge=0)
+    ask_sz_1: int | None = Field(default=None, ge=0)
+    ask_px_2: int | None = Field(default=None, ge=0)
+    ask_sz_2: int | None = Field(default=None, ge=0)
+    ask_px_3: int | None = Field(default=None, ge=0)
+    ask_sz_3: int | None = Field(default=None, ge=0)

@@ -114,7 +114,7 @@ ts_received        timestamp[ns, UTC]                # ingester clock
 symbol             string
 asset_class        string                            # enum: equity|future|index
 exchange           string                            # HOSE|HNX|UPCoM|HNX-DERIV
-price              int64                             # 1/10 VND
+price              int64                             # whole VND (SSI v3 emits raw VND; see note in §2.3)
 volume             int64
 match_type         string                            # ATO|continuous|ATC|put-through
 side               string                            # B|S|? (aggressor)
@@ -138,10 +138,9 @@ spread_bps         int32                             # computed at ingest
 ts_event, ts_received, symbol, asset_class, exchange
 bid_px_1..bid_px_10        int64
 bid_sz_1..bid_sz_10        int64
-bid_n_1..bid_n_10          int32     # # orders at level
+                                       # (SSI v3 does NOT expose order count per level — dropped)
 ask_px_1..ask_px_10        int64
 ask_sz_1..ask_sz_10        int64
-ask_n_1..ask_n_10          int32
 ```
 
 **index_values** (intraday, ~3s cadence during sessions):
@@ -209,7 +208,7 @@ symbol, underlying_index, expiry_date, contract_size, tick_size, margin_pct
 
 ### 2.3 Schema conventions
 
-- **Prices stored as `int64` in 1/10 VND** — avoids float precision issues.
+- **Prices stored as `int64` in whole VND** — SSI FastConnect v3 emits raw VND (e.g. HPG bid 24,150 = 24,150 VND). Earlier spec said 1/10 VND; corrected post-probe 2026-05-26.
 - **`asset_class` enum**: `equity|future|index`. Filter, don't join.
 - **`schema_version`** as a Parquet metadata key on every file.
 - **Curated layer** is a full-overwrite-by-partition idempotent rebuild from raw.
