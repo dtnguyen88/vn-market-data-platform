@@ -19,7 +19,8 @@ def test_build_uris_ticks():
 @pytest.mark.unit
 def test_build_uris_daily_ohlcv():
     raw, curated = _build_uris("daily-ohlcv", date(2026, 4, 28), "prod")
-    assert "year=2026" in raw
+    # raw uses recursive ** to span year=Y/date=D layout for both EOD + backfill
+    assert raw == "gs://vn-market-lake-prod/raw/daily-ohlcv/**/*.parquet"
     assert "year=2026" in curated
 
 
