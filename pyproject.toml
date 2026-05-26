@@ -22,7 +22,10 @@ dependencies = [
   "polars>=1.0",
   "fastapi>=0.110",
   "uvicorn[standard]>=0.30",
-  "vnstock>=3.0",
+  # Pinned to 3.5.x: vnstock 4.x bundles vnai which auto-injects rate-limits
+  # via sys.exit("Rate limit exceeded"), breaks fundamentals/listing on every
+  # call. Also drops TCBS source. Revisit when migrating to vnstock.api.* API.
+  "vnstock>=3.5,<4.0",
   "ssi-sdk>=3.0.3",
   "tenacity>=8.2",
   "streamlit>=1.56",
