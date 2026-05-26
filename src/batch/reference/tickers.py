@@ -43,18 +43,21 @@ def _normalize_tickers(pdf) -> pl.DataFrame:
 
 
 def pull_tickers_tcbs() -> pl.DataFrame:
-    """Fetch ticker master from TCBS via vnstock."""
+    """Fetch ticker master via vnstock.Listing.symbols_by_industries (3.x API).
+
+    vnstock 3.x exposes Listing as a top-level class, not via Vnstock().listing.
+    """
     import vnstock
 
-    pdf = vnstock.Vnstock().listing.symbols_by_industries()
+    pdf = vnstock.Listing().symbols_by_industries()
     return _normalize_tickers(pdf)
 
 
 def pull_tickers_vci() -> pl.DataFrame:
-    """Fetch ticker master from VCI via vnstock (fallback)."""
+    """Fetch ticker master via vnstock.Listing.symbols_by_exchange (fallback)."""
     import vnstock
 
-    pdf = vnstock.Vnstock(source="VCI").listing.symbols_by_exchange()
+    pdf = vnstock.Listing(source="VCI").symbols_by_exchange()
     return _normalize_tickers(pdf)
 
 
