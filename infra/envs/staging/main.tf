@@ -90,10 +90,11 @@ module "topic_odd_lot" {
 
 locals {
   artifact_registry_prefix = "asia-southeast1-docker.pkg.dev/${var.project_id}/vn-market"
-  publisher_image          = "${local.artifact_registry_prefix}/publisher:latest"
-  writers_image            = "${local.artifact_registry_prefix}/writers:latest"
-  symbols_url_prefix       = "gs://${module.lake_bucket.name}/_ops/reference"
-  workflows_path           = "${path.module}/../../workflows"
+  # Pinned to v3 SSI ingest SHA so terraform drives revision rollouts. Bump on each release.
+  publisher_image    = "${local.artifact_registry_prefix}/publisher:93a6bc6"
+  writers_image      = "${local.artifact_registry_prefix}/writers:93a6bc6"
+  symbols_url_prefix = "gs://${module.lake_bucket.name}/_ops/reference"
+  workflows_path     = "${path.module}/../../workflows"
 }
 
 # ─── 4 publisher shards (stateful WS consumers, min=max=1) ───────────────────
@@ -1058,10 +1059,10 @@ module "backfill_job" {
   service_account_email = module.service_accounts.emails["batch-ingester"]
   task_count            = 10
   parallelism           = 10
-  # 21600s = 6h. Sized for full historical backfill: 1537 syms x ~3 streams x
-  # 0.3 req/s vnstock throttle = ~5h per-task worst case (task_index=0 also
-  # pulls fundamentals + reference).
-  task_timeout = "21600s"
+  # 86400s = 24h (Cloud Run max). Observed real throughput: ~1.5 syms/min for
+  # daily (GCS PUT-per-date partition dominates). 1537 syms x 4 streams = ~17h
+  # worst case. Bumped from 6h after backfill-66r5b run showed insufficient time.
+  task_timeout = "86400s"
   max_retries  = 1
   memory       = "2Gi"
   cpu          = "1"
