@@ -67,6 +67,27 @@ module "topic_indices" {
   name       = "market-indices"
 }
 
+# New SSI v3 streams (foreign room, put-through deals, odd-lot segment).
+# Publisher emits these from `room.*` / `put.*` / `oddlot.*` wire topics.
+
+module "topic_foreign_room" {
+  source     = "../../modules/pubsub-topic"
+  project_id = var.project_id
+  name       = "market-foreign-room"
+}
+
+module "topic_put_through" {
+  source     = "../../modules/pubsub-topic"
+  project_id = var.project_id
+  name       = "market-put-through"
+}
+
+module "topic_odd_lot" {
+  source     = "../../modules/pubsub-topic"
+  project_id = var.project_id
+  name       = "market-odd-lot"
+}
+
 locals {
   artifact_registry_prefix = "asia-southeast1-docker.pkg.dev/${var.project_id}/vn-market"
   publisher_image          = "${local.artifact_registry_prefix}/publisher:latest"
@@ -78,7 +99,6 @@ locals {
 # ─── 4 publisher shards (stateful WS consumers, min=max=1) ───────────────────
 
 module "publisher_shard_0" {
-  count                 = 0 # DISABLED: needs SSI creds + HTTP /healthz listener (see TODO)
   source                = "../../modules/cloud-run-service"
   project_id            = var.project_id
   location              = var.region
@@ -99,7 +119,6 @@ module "publisher_shard_0" {
 }
 
 module "publisher_shard_1" {
-  count                 = 0 # DISABLED: needs SSI creds + HTTP /healthz listener (see TODO)
   source                = "../../modules/cloud-run-service"
   project_id            = var.project_id
   location              = var.region
@@ -120,7 +139,6 @@ module "publisher_shard_1" {
 }
 
 module "publisher_shard_2" {
-  count                 = 0 # DISABLED: needs SSI creds + HTTP /healthz listener (see TODO)
   source                = "../../modules/cloud-run-service"
   project_id            = var.project_id
   location              = var.region
@@ -141,7 +159,6 @@ module "publisher_shard_2" {
 }
 
 module "publisher_shard_3" {
-  count                 = 0 # DISABLED: needs SSI creds + HTTP /healthz listener (see TODO)
   source                = "../../modules/cloud-run-service"
   project_id            = var.project_id
   location              = var.region
@@ -236,6 +253,67 @@ module "writer_indices" {
     GCP_PROJECT_ID = var.project_id
     ENV            = "staging"
     STREAM         = "indices"
+  }
+}
+
+# New SSI v3 stream writers (low-volume auxiliary streams).
+# Same shape as the 4 core writers above — Pub/Sub push delivery,
+# 60s buffer flush, 5 max instances.
+
+module "writer_foreign_room" {
+  source                = "../../modules/cloud-run-service"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "parquet-writer-foreign-room"
+  image                 = local.writers_image
+  service_account_email = module.service_accounts.emails["parquet-writer"]
+  min_instances         = 1
+  max_instances         = 5
+  memory                = "1Gi"
+  cpu                   = "1"
+  ingress               = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+  env_vars = {
+    GCP_PROJECT_ID = var.project_id
+    ENV            = "staging"
+    STREAM         = "foreign-room"
+  }
+}
+
+module "writer_put_through" {
+  source                = "../../modules/cloud-run-service"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "parquet-writer-put-through"
+  image                 = local.writers_image
+  service_account_email = module.service_accounts.emails["parquet-writer"]
+  min_instances         = 1
+  max_instances         = 5
+  memory                = "1Gi"
+  cpu                   = "1"
+  ingress               = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+  env_vars = {
+    GCP_PROJECT_ID = var.project_id
+    ENV            = "staging"
+    STREAM         = "put-through"
+  }
+}
+
+module "writer_odd_lot" {
+  source                = "../../modules/cloud-run-service"
+  project_id            = var.project_id
+  location              = var.region
+  name                  = "parquet-writer-odd-lot"
+  image                 = local.writers_image
+  service_account_email = module.service_accounts.emails["parquet-writer"]
+  min_instances         = 1
+  max_instances         = 5
+  memory                = "1Gi"
+  cpu                   = "1"
+  ingress               = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+  env_vars = {
+    GCP_PROJECT_ID = var.project_id
+    ENV            = "staging"
+    STREAM         = "odd-lot"
   }
 }
 
@@ -339,6 +417,78 @@ resource "google_pubsub_subscription" "writer_push_indices" {
   }
 }
 
+resource "google_pubsub_subscription" "writer_push_foreign_room" {
+  project              = var.project_id
+  name                 = "market-foreign-room-push-sub"
+  topic                = module.topic_foreign_room.topic_id
+  ack_deadline_seconds = 60
+
+  push_config {
+    push_endpoint = module.writer_foreign_room.url
+    oidc_token {
+      service_account_email = module.service_accounts.emails["parquet-writer"]
+    }
+  }
+
+  dead_letter_policy {
+    dead_letter_topic     = module.topic_foreign_room.dlq_topic_id
+    max_delivery_attempts = 5
+  }
+
+  retry_policy {
+    minimum_backoff = "10s"
+    maximum_backoff = "600s"
+  }
+}
+
+resource "google_pubsub_subscription" "writer_push_put_through" {
+  project              = var.project_id
+  name                 = "market-put-through-push-sub"
+  topic                = module.topic_put_through.topic_id
+  ack_deadline_seconds = 60
+
+  push_config {
+    push_endpoint = module.writer_put_through.url
+    oidc_token {
+      service_account_email = module.service_accounts.emails["parquet-writer"]
+    }
+  }
+
+  dead_letter_policy {
+    dead_letter_topic     = module.topic_put_through.dlq_topic_id
+    max_delivery_attempts = 5
+  }
+
+  retry_policy {
+    minimum_backoff = "10s"
+    maximum_backoff = "600s"
+  }
+}
+
+resource "google_pubsub_subscription" "writer_push_odd_lot" {
+  project              = var.project_id
+  name                 = "market-odd-lot-push-sub"
+  topic                = module.topic_odd_lot.topic_id
+  ack_deadline_seconds = 60
+
+  push_config {
+    push_endpoint = module.writer_odd_lot.url
+    oidc_token {
+      service_account_email = module.service_accounts.emails["parquet-writer"]
+    }
+  }
+
+  dead_letter_policy {
+    dead_letter_topic     = module.topic_odd_lot.dlq_topic_id
+    max_delivery_attempts = 5
+  }
+
+  retry_policy {
+    minimum_backoff = "10s"
+    maximum_backoff = "600s"
+  }
+}
+
 # ─── IAM: grant parquet-writer SA roles/run.invoker on each writer service ───
 # Required so Pub/Sub can use the OIDC token to authenticate push requests.
 
@@ -370,6 +520,30 @@ resource "google_cloud_run_v2_service_iam_member" "pubsub_invoker_indices" {
   project  = var.project_id
   location = var.region
   name     = module.writer_indices.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${module.service_accounts.emails["parquet-writer"]}"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "pubsub_invoker_foreign_room" {
+  project  = var.project_id
+  location = var.region
+  name     = module.writer_foreign_room.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${module.service_accounts.emails["parquet-writer"]}"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "pubsub_invoker_put_through" {
+  project  = var.project_id
+  location = var.region
+  name     = module.writer_put_through.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${module.service_accounts.emails["parquet-writer"]}"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "pubsub_invoker_odd_lot" {
+  project  = var.project_id
+  location = var.region
+  name     = module.writer_odd_lot.name
   role     = "roles/run.invoker"
   member   = "serviceAccount:${module.service_accounts.emails["parquet-writer"]}"
 }

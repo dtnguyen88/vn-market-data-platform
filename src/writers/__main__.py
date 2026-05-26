@@ -13,7 +13,15 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from fastapi import FastAPI, Request
-from shared.schemas import IndexValue, QuoteL1, QuoteL2, Tick
+from shared.schemas import (
+    ForeignRoomSnapshot,
+    IndexValue,
+    OddLotSnapshot,
+    PutThrough,
+    QuoteL1,
+    QuoteL2,
+    Tick,
+)
 
 from .buffer import RingBuffer
 from .gcs_uploader import GcsUploader
@@ -31,6 +39,9 @@ MODEL_BY_STREAM = {
     "quotes-l1": QuoteL1,
     "quotes-l2": QuoteL2,
     "indices": IndexValue,
+    "foreign-room": ForeignRoomSnapshot,
+    "put-through": PutThrough,
+    "odd-lot": OddLotSnapshot,
 }
 
 PARTITION_FN = {
@@ -45,6 +56,18 @@ PARTITION_FN = {
         f"/hour={m.ts_event.hour:02d}/symbol={m.symbol}"
     ),
     "indices": lambda m: (f"raw/indices/date={m.ts_event.date()}/index={m.index_code}"),
+    "foreign-room": lambda m: (
+        f"raw/foreign-room/date={m.ts_event.date()}"
+        f"/asset_class={m.asset_class.value}/symbol={m.symbol}"
+    ),
+    "put-through": lambda m: (
+        f"raw/put-through/date={m.ts_event.date()}"
+        f"/asset_class={m.asset_class.value}/symbol={m.symbol}"
+    ),
+    "odd-lot": lambda m: (
+        f"raw/odd-lot/date={m.ts_event.date()}"
+        f"/asset_class={m.asset_class.value}/symbol={m.symbol}"
+    ),
 }
 
 uploader = GcsUploader(BUCKET)
