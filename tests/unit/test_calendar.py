@@ -4,6 +4,7 @@ from datetime import date, time
 from pathlib import Path
 
 import pytest
+
 from shared.calendar import AssetClass, Calendar
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "calendar" / "2026.json"

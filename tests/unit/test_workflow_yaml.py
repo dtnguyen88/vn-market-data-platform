@@ -15,6 +15,8 @@ EXPECTED_WORKFLOWS = {
     "curate-fallback.yaml",
     "calendar-refresh-yearly.yaml",
     "monthly-cost-report.yaml",
+    "daily-ohlcv-refresh.yaml",
+    "publisher-scaler.yaml",
 }
 
 

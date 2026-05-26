@@ -13,6 +13,7 @@ from datetime import date, timedelta
 
 import polars as pl
 import structlog
+
 from shared.fallback import try_in_order
 
 log = structlog.get_logger(__name__)

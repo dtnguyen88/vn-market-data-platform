@@ -1,6 +1,7 @@
 """Unit tests for vnmarket.Client surface — minimal smoke (no real GCS)."""
 
 import pytest
+
 from vnmarket import Client
 
 

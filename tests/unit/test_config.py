@@ -1,6 +1,7 @@
 """Unit tests for publisher.config — env var parsing (SSI v3 secret names)."""
 
 import pytest
+
 from publisher.config import Config
 
 

@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pandas as pd
 import polars as pl
 import pytest
+
 from batch.eod.corp_actions import (
     _normalize_corp_actions,
     pull_corp_actions,

@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from publisher.pubsub_publisher import PubsubPublisher
 from shared.schemas import Exchange, IndexValue
 

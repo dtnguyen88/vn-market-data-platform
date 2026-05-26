@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import polars as pl
 import pytest
+
 from batch.eod.vnstock_pulls import (
     _normalize,
     pull_daily,

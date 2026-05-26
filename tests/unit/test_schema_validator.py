@@ -1,6 +1,7 @@
 """Unit tests for writers.schema_validator — Pydantic validate-or-None."""
 
 import pytest
+
 from shared.schemas import IndexValue
 from writers.schema_validator import validate
 

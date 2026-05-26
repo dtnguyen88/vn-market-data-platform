@@ -15,9 +15,10 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from google.cloud import bigquery
+from streamlit_ace import st_ace
+
 from research_app.auth import require_login
 from research_app.components.theme import apply_theme, page_header, sidebar_env_badges
-from streamlit_ace import st_ace
 
 st.set_page_config(page_title="SQL Lab", page_icon="🧪", layout="wide")
 apply_theme()

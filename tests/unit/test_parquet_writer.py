@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 import polars as pl
 import pytest
+
 from shared.schemas import Exchange, IndexValue
 from writers.parquet_writer import models_to_parquet
 

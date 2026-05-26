@@ -4,6 +4,7 @@ from datetime import date
 
 import polars as pl
 import pytest
+
 from curate.adjustments import _action_factor, apply_adjustments
 
 

@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from ops.cost_report.__main__ import fetch_spend
 
 
