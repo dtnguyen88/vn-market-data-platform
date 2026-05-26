@@ -37,10 +37,17 @@ def _normalize_futures(pdf) -> pl.DataFrame:
 
 
 def pull_futures_tcbs() -> pl.DataFrame:
-    """Fetch futures contract list from TCBS via vnstock."""
+    """Fetch futures contract list via vnstock.Listing (3.x top-level API).
+
+    vnstock 3.x exposes Listing as a top-level class (not via Vnstock().listing).
+    `all_future_indices` returns a pandas Series of symbols, not a DataFrame —
+    wrap into a single-column frame; _normalize_futures pads remaining columns.
+    """
+    import pandas as pd
     import vnstock
 
-    pdf = vnstock.Vnstock().listing.future_indices()
+    out = vnstock.Listing().all_future_indices()
+    pdf = out.to_frame(name="symbol") if isinstance(out, pd.Series) else out
     return _normalize_futures(pdf)
 
 
