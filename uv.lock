@@ -1543,6 +1543,20 @@ wheels = [
 ]
 
 [[package]]
+name = "ssi-sdk"
+version = "3.0.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+    { name = "websocket-client" },
+    { name = "websockets" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/84/5f/245c30078c78d4a91d22d25dd3f497f93fb0dc974142679a880e942c3dd8/ssi_sdk-3.0.3.tar.gz", hash = "sha256:85acff07908dac139a2ab760ac6a19eb425d0297a3ebe908939483c1addc139c", size = 66224, upload-time = "2026-05-11T08:04:39.576Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/55/94/2c3737b9669559d3c50d720988f21839eb9e251ac6f8abd36ad0fecad182/ssi_sdk-3.0.3-py3-none-any.whl", hash = "sha256:0a070e0d37130afceffdb1de0061595e5d1e83bb95b1a271a5d1f92557b6f93d", size = 57764, upload-time = "2026-05-11T08:04:37.572Z" },
+]
+
+[[package]]
 name = "starlette"
 version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1774,6 +1788,7 @@ dependencies = [
     { name = "polars" },
     { name = "pyarrow" },
     { name = "pydantic" },
+    { name = "ssi-sdk" },
     { name = "streamlit" },
     { name = "streamlit-ace" },
     { name = "structlog" },
@@ -1823,6 +1838,7 @@ requires-dist = [
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.12" },
     { name = "responses", marker = "extra == 'dev'", specifier = ">=0.25" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
+    { name = "ssi-sdk", specifier = ">=3.0.3" },
     { name = "streamlit", specifier = ">=1.56" },
     { name = "streamlit-ace", specifier = ">=0.1.1" },
     { name = "structlog", specifier = ">=24.1" },
@@ -1933,6 +1949,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/0a/bf/95895e78dd75efe9a7f31733607f384b42eb5feb54bd2eb6ed57cc2e94f4/watchfiles-1.1.1-cp312-cp312-win32.whl", hash = "sha256:859e43a1951717cc8de7f4c77674a6d389b106361585951d9e69572823f311d9", size = 272042, upload-time = "2025-10-14T15:04:59.046Z" },
     { url = "https://files.pythonhosted.org/packages/87/0a/90eb755f568de2688cb220171c4191df932232c20946966c27a59c400850/watchfiles-1.1.1-cp312-cp312-win_amd64.whl", hash = "sha256:91d4c9a823a8c987cce8fa2690923b069966dabb196dd8d137ea2cede885fde9", size = 288410, upload-time = "2025-10-14T15:05:00.081Z" },
     { url = "https://files.pythonhosted.org/packages/36/76/f322701530586922fbd6723c4f91ace21364924822a8772c549483abed13/watchfiles-1.1.1-cp312-cp312-win_arm64.whl", hash = "sha256:a625815d4a2bdca61953dbba5a39d60164451ef34c88d751f6c368c3ea73d404", size = 278209, upload-time = "2025-10-14T15:05:01.168Z" },
+]
+
+[[package]]
+name = "websocket-client"
+version = "1.9.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2c/41/aa4bf9664e4cda14c3b39865b12251e8e7d239f4cd0e3cc1b6c2ccde25c1/websocket_client-1.9.0.tar.gz", hash = "sha256:9e813624b6eb619999a97dc7958469217c3176312b3a16a4bd1bc7e08a46ec98", size = 70576, upload-time = "2025-10-07T21:16:36.495Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/34/db/b10e48aa8fff7407e67470363eac595018441cf32d5e1001567a7aeba5d2/websocket_client-1.9.0-py3-none-any.whl", hash = "sha256:af248a825037ef591efbf6ed20cc5faa03d3b47b9e5a2230a529eeee1c1fc3ef", size = 82616, upload-time = "2025-10-07T21:16:34.951Z" },
 ]
 
 [[package]]

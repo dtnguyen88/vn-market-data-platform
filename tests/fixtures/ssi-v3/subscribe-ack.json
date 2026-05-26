@@ -1,0 +1,6 @@
+{
+  "method": "subscribe",
+  "channel": "DATA",
+  "status": "ok",
+  "message": "Subscribed to 5 topic(s)"
+}

@@ -23,6 +23,7 @@ dependencies = [
   "fastapi>=0.110",
   "uvicorn[standard]>=0.30",
   "vnstock>=3.0",
+  "ssi-sdk>=3.0.3",
   "tenacity>=8.2",
   "streamlit>=1.56",
   "plotly>=5.20",
