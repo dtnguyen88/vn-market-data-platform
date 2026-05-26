@@ -1,4 +1,5 @@
 import pytest
+
 from shared.fallback import AllSourcesFailed, async_try_in_order, try_in_order
 
 

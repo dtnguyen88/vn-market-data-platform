@@ -3,6 +3,7 @@
 from datetime import date
 
 import pytest
+
 from curate.__main__ import _build_uris
 
 

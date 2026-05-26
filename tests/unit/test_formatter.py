@@ -1,6 +1,7 @@
 """Unit tests for alerter.formatter."""
 
 import pytest
+
 from alerter.formatter import _escape, _logs_url, format_alert
 
 

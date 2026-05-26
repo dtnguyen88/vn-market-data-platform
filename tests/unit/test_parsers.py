@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+
 from publisher.parsers import (
     parse_foreign_room,
     parse_odd_lot,

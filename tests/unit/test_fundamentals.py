@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pandas as pd
 import polars as pl
 import pytest
+
 from batch.eod.fundamentals import (
     _normalize_fundamentals,
     is_quarterly_report_date,

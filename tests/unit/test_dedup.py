@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 import polars as pl
 import pytest
+
 from curate.dedup import dedup_polars
 
 

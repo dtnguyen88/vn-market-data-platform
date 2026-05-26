@@ -5,8 +5,9 @@ import os
 # Must be set before importing __main__ which reads os.environ["GCP_PROJECT_ID"] at module load.
 os.environ.setdefault("GCP_PROJECT_ID", "test-project")
 
-import pytest  # noqa: E402
-from alerter.__main__ import _parse_payload  # noqa: E402
+import pytest
+
+from alerter.__main__ import _parse_payload
 
 
 @pytest.mark.unit

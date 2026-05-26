@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from fastapi import FastAPI, Request
+
 from shared.schemas import (
     ForeignRoomSnapshot,
     IndexValue,
@@ -55,7 +56,7 @@ PARTITION_FN = {
         f"raw/quotes-l2/date={m.ts_event.date()}/asset_class={m.asset_class.value}"
         f"/hour={m.ts_event.hour:02d}/symbol={m.symbol}"
     ),
-    "indices": lambda m: (f"raw/indices/date={m.ts_event.date()}/index={m.index_code}"),
+    "indices": lambda m: f"raw/indices/date={m.ts_event.date()}/index={m.index_code}",
     "foreign-room": lambda m: (
         f"raw/foreign-room/date={m.ts_event.date()}"
         f"/asset_class={m.asset_class.value}/symbol={m.symbol}"
@@ -65,8 +66,7 @@ PARTITION_FN = {
         f"/asset_class={m.asset_class.value}/symbol={m.symbol}"
     ),
     "odd-lot": lambda m: (
-        f"raw/odd-lot/date={m.ts_event.date()}"
-        f"/asset_class={m.asset_class.value}/symbol={m.symbol}"
+        f"raw/odd-lot/date={m.ts_event.date()}/asset_class={m.asset_class.value}/symbol={m.symbol}"
     ),
 }
 

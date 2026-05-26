@@ -1,4 +1,5 @@
 import pytest
+
 from publisher.shard import NUM_SHARDS, shard_for_symbol
 
 

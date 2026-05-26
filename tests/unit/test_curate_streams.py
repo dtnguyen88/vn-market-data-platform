@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime
 
 import polars as pl
 import pytest
+
 from curate.streams.corp_actions import curate_corp_actions
 from curate.streams.daily_ohlcv import curate_daily_ohlcv
 from curate.streams.fundamentals import curate_fundamentals

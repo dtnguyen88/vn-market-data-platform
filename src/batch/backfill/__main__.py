@@ -28,6 +28,7 @@ from io import BytesIO
 
 import polars as pl
 import structlog
+
 from shared.fallback import try_in_order
 from shared.throttle import TokenBucket
 

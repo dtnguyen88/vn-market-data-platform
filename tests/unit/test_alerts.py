@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from shared.alerts import publish_alert
 
 
@@ -45,7 +46,7 @@ def test_publish_alert_minimal(mock_cls):
     mock_cls.return_value = client
 
     publish_alert(project_id="p", severity="info", name="eod_done", body="ok")
-    args, kwargs = client.publish.call_args
+    _args, kwargs = client.publish.call_args
     assert "scope" not in kwargs
     assert "source" not in kwargs
     assert kwargs["severity"] == "info"

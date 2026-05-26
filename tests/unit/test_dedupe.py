@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
+
 from alerter.dedupe import AlertDeduper, _sanitize_key, _ttl_for
 
 

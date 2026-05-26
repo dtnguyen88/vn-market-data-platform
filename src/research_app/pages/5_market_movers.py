@@ -12,6 +12,7 @@ import os
 import pandas as pd
 import streamlit as st
 from google.cloud import bigquery
+
 from research_app.auth import require_login
 from research_app.components.theme import apply_theme, page_header, sidebar_env_badges
 

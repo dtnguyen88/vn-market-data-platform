@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pandas as pd
 import polars as pl
 import pytest
+
 from batch.reference.futures import _normalize_futures, pull_futures
 from batch.reference.tickers import _normalize_tickers, pull_tickers
 from shared.fallback import AllSourcesFailed

@@ -1,6 +1,7 @@
 """Unit tests for vnmarket.cache.ParquetCache (uses tmp_path)."""
 
 import pytest
+
 from vnmarket.cache import ParquetCache
 
 

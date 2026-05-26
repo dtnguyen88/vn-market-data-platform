@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
 
 import pytest
+
 from batch.eod.__main__ import _load_symbols, _resolve_target_date
 
 VN = ZoneInfo("Asia/Ho_Chi_Minh")

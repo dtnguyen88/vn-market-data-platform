@@ -3,6 +3,7 @@
 import time
 
 import pytest
+
 from writers.buffer import RingBuffer
 
 

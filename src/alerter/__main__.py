@@ -16,6 +16,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, HTTPException, Request
+
 from shared.throttle import TokenBucket
 
 from .dedupe import AlertDeduper

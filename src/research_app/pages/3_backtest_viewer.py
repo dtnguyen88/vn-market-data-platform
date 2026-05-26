@@ -5,6 +5,7 @@ from io import BytesIO
 import numpy as np
 import pandas as pd
 import streamlit as st
+
 from research_app.auth import require_login
 from research_app.components.charts import equity_curve
 from research_app.components.theme import apply_theme, page_header, sidebar_env_badges

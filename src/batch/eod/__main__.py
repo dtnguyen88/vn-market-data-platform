@@ -22,6 +22,7 @@ from zoneinfo import ZoneInfo
 import polars as pl
 import structlog
 from google.cloud import storage
+
 from shared.throttle import TokenBucket
 
 from .corp_actions import pull_corp_actions
