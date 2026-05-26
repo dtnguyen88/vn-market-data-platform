@@ -1058,11 +1058,14 @@ module "backfill_job" {
   service_account_email = module.service_accounts.emails["batch-ingester"]
   task_count            = 10
   parallelism           = 10
-  task_timeout          = "3600s"
-  max_retries           = 1
-  memory                = "2Gi"
-  cpu                   = "1"
-  env_vars              = { GCP_PROJECT_ID = var.project_id, ENV = "staging" }
+  # 21600s = 6h. Sized for full historical backfill: 1537 syms x ~3 streams x
+  # 0.3 req/s vnstock throttle = ~5h per-task worst case (task_index=0 also
+  # pulls fundamentals + reference).
+  task_timeout = "21600s"
+  max_retries  = 1
+  memory       = "2Gi"
+  cpu          = "1"
+  env_vars     = { GCP_PROJECT_ID = var.project_id, ENV = "staging" }
 }
 
 # ─── Research App: Streamlit UI (IAM-protected via run.invoker grant) ─────────
