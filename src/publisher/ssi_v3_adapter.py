@@ -114,9 +114,16 @@ class V3StreamAdapter:
         log.info("SSI v3 WS connected")
 
         if self._symbols:
-            # subscribe_symbol() = trade+quote+room combined per symbol
+            # subscribe_symbol() = trade+quote+room combined per symbol.
+            # SDK does NOT include put-through or odd-lot in this combo, so
+            # subscribe to those separately to fill all 5 data streams.
             await self._stream.streaming.subscribe_symbol(self._symbols)
-            log.info("subscribed to %d symbols (trade+quote+room)", len(self._symbols))
+            await self._stream.streaming.subscribe_symbol_put_through(self._symbols)
+            await self._stream.streaming.subscribe_symbol_odd_lot(self._symbols)
+            log.info(
+                "subscribed to %d symbols (trade+quote+room+put-through+odd-lot)",
+                len(self._symbols),
+            )
         if self._indices:
             # subscribe_index() succeeds but yields no events on this account/SDK
             # combo (market.* topic). We still call it for symmetry; index VALUES
