@@ -102,3 +102,13 @@ resource "google_project_iam_member" "binding" {
   role    = each.value.role
   member  = "serviceAccount:${google_service_account.sa[each.value.sa_name].email}"
 }
+
+# Workflows-SA needs iam.serviceAccountUser on realtime-publisher-sa so the
+# publisher-scaler workflow can patch the publisher Cloud Run services (which
+# run AS realtime-publisher-sa). Without this, scaler workflow fails 403 on
+# Services.UpdateService with "Permission 'iam.serviceaccounts.actAs' denied".
+resource "google_service_account_iam_member" "workflows_can_act_as_publisher" {
+  service_account_id = google_service_account.sa["realtime-publisher"].name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.sa["workflows"].email}"
+}
