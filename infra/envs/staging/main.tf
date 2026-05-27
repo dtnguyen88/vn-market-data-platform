@@ -1089,10 +1089,12 @@ module "research_app" {
   env_vars = {
     GCP_PROJECT_ID = var.project_id
     ENV            = "staging"
-    # APP_USERNAME / APP_PASSWORD are set out-of-band via `gcloud run services
-    # update --update-env-vars` so credentials aren't in source. Will be lost
-    # on next terraform apply unless migrated to a secret_key_ref env block.
-    # TODO: add cloud-run-service module support for env_var_from_secret and
-    # use module.secrets to provision research-app-username / -password.
+  }
+  # APP_USERNAME / APP_PASSWORD mounted from Secret Manager. Values are populated
+  # out-of-band via `gcloud secrets versions add research-app-{username,password}`.
+  # research-app SA inherits roles/secretmanager.secretAccessor project-wide.
+  env_vars_from_secret = {
+    APP_USERNAME = { secret = "research-app-username" } # pragma: allowlist secret
+    APP_PASSWORD = { secret = "research-app-password" } # pragma: allowlist secret
   }
 }

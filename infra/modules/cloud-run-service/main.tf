@@ -45,6 +45,18 @@ resource "google_cloud_run_v2_service" "service" {
           value = env.value
         }
       }
+      dynamic "env" {
+        for_each = var.env_vars_from_secret
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = env.value.secret
+              version = env.value.version
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -30,6 +30,15 @@ variable "env_vars" {
   description = "Environment variables for the container."
 }
 
+variable "env_vars_from_secret" {
+  type = map(object({
+    secret  = string
+    version = optional(string, "latest")
+  }))
+  default     = {}
+  description = "Env vars sourced from Secret Manager. Key = env var name; value = { secret = secret_id, version = version_alias (default 'latest') }. Service account needs roles/secretmanager.secretAccessor."
+}
+
 variable "min_instances" {
   type        = number
   default     = 0
