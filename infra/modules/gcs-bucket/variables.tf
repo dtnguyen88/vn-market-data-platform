@@ -25,3 +25,9 @@ variable "noncurrent_age_days" {
   default     = 30
   description = "Days after which non-current versions are deleted. Default 30."
 }
+
+variable "tiering_enabled" {
+  type        = bool
+  default     = false
+  description = "If true, transition STANDARD → NEARLINE at 30d, NEARLINE → COLDLINE at 90d. Use for data-lake buckets; leave off for state/build buckets."
+}
