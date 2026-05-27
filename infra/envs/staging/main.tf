@@ -99,7 +99,12 @@ locals {
   workflows_path     = "${path.module}/../../workflows"
 }
 
-# ─── 4 publisher shards (stateful WS consumers, min=max=1) ───────────────────
+# ─── 4 publisher shards (stateful WS consumers) ─────────────────────────────
+# min_instances drift is owned by the publisher-scaler workflow which patches
+# it to 1 at market open (08:40 ICT) and 0 at market close (15:05 ICT). The
+# cloud-run-service module declares lifecycle.ignore_changes on
+# min_instance_count, so the `1` below only applies on initial create —
+# subsequent applies will not revert the scaler's patches.
 
 module "publisher_shard_0" {
   source                = "../../modules/cloud-run-service"

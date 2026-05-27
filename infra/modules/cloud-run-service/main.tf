@@ -14,6 +14,17 @@ resource "google_cloud_run_v2_service" "service" {
   name     = var.name
   ingress  = var.ingress
 
+  # Always ignore min_instance_count drift. Publisher shards are patched by the
+  # publisher-scaler workflow at market open/close; without this, every
+  # `terraform apply` would revert the scaler to the value declared here.
+  # For services not under scaler control (writers, alerter, research-app),
+  # the literal min_instances value still takes effect on initial create —
+  # only subsequent drift is ignored, which is acceptable since manual scale
+  # changes on those services are rare and intentional.
+  lifecycle {
+    ignore_changes = [template[0].scaling[0].min_instance_count]
+  }
+
   template {
     service_account = var.service_account_email
 

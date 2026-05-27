@@ -42,7 +42,7 @@ variable "env_vars_from_secret" {
 variable "min_instances" {
   type        = number
   default     = 0
-  description = "Minimum instance count."
+  description = "Minimum instance count. NOTE: only honored on initial create; subsequent drift on this field is ignored (see lifecycle.ignore_changes in main.tf) so external scalers like publisher-scaler aren't fought by terraform."
 }
 
 variable "max_instances" {
