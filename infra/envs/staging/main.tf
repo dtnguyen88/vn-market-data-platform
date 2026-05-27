@@ -9,9 +9,10 @@ module "secrets" {
 }
 
 module "lake_bucket" {
-  source     = "../../modules/gcs-bucket"
-  project_id = var.project_id
-  name       = "vn-market-lake-staging"
+  source          = "../../modules/gcs-bucket"
+  project_id      = var.project_id
+  name            = "vn-market-lake-staging"
+  tiering_enabled = true # STANDARD→NEARLINE@30d, NEARLINE→COLDLINE@90d
 }
 
 resource "google_bigquery_dataset" "vnmarket" {
@@ -189,11 +190,15 @@ module "writer_ticks" {
   name                  = "parquet-writer-ticks"
   image                 = local.writers_image
   service_account_email = module.service_accounts.emails["parquet-writer"]
-  min_instances         = 1
-  max_instances         = 5
-  memory                = "1Gi"
-  cpu                   = "1"
-  ingress               = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+  # min=0: instances scale to zero off market hours. During market, push traffic
+  # keeps them warm. ~$130/mo idle compute saved vs always-on min=1.
+  # NOTE: do NOT also flip cpu_idle=true — the writer's flush_loop is a 5s
+  # background task that requires CPU between requests; throttling would freeze it.
+  min_instances = 0
+  max_instances = 5
+  memory        = "1Gi"
+  cpu           = "1"
+  ingress       = "INGRESS_TRAFFIC_INTERNAL_ONLY"
   env_vars = {
     GCP_PROJECT_ID = var.project_id
     ENV            = "staging"
@@ -208,7 +213,7 @@ module "writer_quotes_l1" {
   name                  = "parquet-writer-quotes-l1"
   image                 = local.writers_image
   service_account_email = module.service_accounts.emails["parquet-writer"]
-  min_instances         = 1
+  min_instances         = 0 # see writer_ticks for rationale
   max_instances         = 5
   memory                = "1Gi"
   cpu                   = "1"
@@ -227,7 +232,7 @@ module "writer_quotes_l2" {
   name                  = "parquet-writer-quotes-l2"
   image                 = local.writers_image
   service_account_email = module.service_accounts.emails["parquet-writer"]
-  min_instances         = 1
+  min_instances         = 0 # see writer_ticks for rationale
   max_instances         = 5
   memory                = "1Gi"
   cpu                   = "1"
@@ -246,7 +251,7 @@ module "writer_indices" {
   name                  = "parquet-writer-indices"
   image                 = local.writers_image
   service_account_email = module.service_accounts.emails["parquet-writer"]
-  min_instances         = 1
+  min_instances         = 0 # see writer_ticks for rationale
   max_instances         = 5
   memory                = "1Gi"
   cpu                   = "1"
@@ -269,7 +274,7 @@ module "writer_foreign_room" {
   name                  = "parquet-writer-foreign-room"
   image                 = local.writers_image
   service_account_email = module.service_accounts.emails["parquet-writer"]
-  min_instances         = 1
+  min_instances         = 0 # see writer_ticks for rationale
   max_instances         = 5
   memory                = "1Gi"
   cpu                   = "1"
@@ -288,7 +293,7 @@ module "writer_put_through" {
   name                  = "parquet-writer-put-through"
   image                 = local.writers_image
   service_account_email = module.service_accounts.emails["parquet-writer"]
-  min_instances         = 1
+  min_instances         = 0 # see writer_ticks for rationale
   max_instances         = 5
   memory                = "1Gi"
   cpu                   = "1"
@@ -307,7 +312,7 @@ module "writer_odd_lot" {
   name                  = "parquet-writer-odd-lot"
   image                 = local.writers_image
   service_account_email = module.service_accounts.emails["parquet-writer"]
-  min_instances         = 1
+  min_instances         = 0 # see writer_ticks for rationale
   max_instances         = 5
   memory                = "1Gi"
   cpu                   = "1"
