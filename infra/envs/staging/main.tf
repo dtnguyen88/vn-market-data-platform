@@ -90,8 +90,9 @@ module "topic_odd_lot" {
 
 locals {
   artifact_registry_prefix = "asia-southeast1-docker.pkg.dev/${var.project_id}/vn-market"
-  # Pinned to v3 SSI ingest SHA so terraform drives revision rollouts. Bump on each release.
-  publisher_image    = "${local.artifact_registry_prefix}/publisher:93a6bc6"
+  # Pinned per-release so terraform drives revision rollouts. Bump on each release.
+  # publisher:cfbypass-1779849293 — first image with Cloudflare-bypass headers (PR #8)
+  publisher_image    = "${local.artifact_registry_prefix}/publisher:cfbypass-1779849293"
   writers_image      = "${local.artifact_registry_prefix}/writers:93a6bc6"
   symbols_url_prefix = "gs://${module.lake_bucket.name}/_ops/reference"
   workflows_path     = "${path.module}/../../workflows"

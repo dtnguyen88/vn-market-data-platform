@@ -12,10 +12,11 @@ variable "region" {
 variable "secret_names" {
   type = list(string)
   default = [
-    # SSI FastConnect v3 (current)
-    "ssi-fc-api-key",
-    "ssi-fc-api-secret",
-    "ssi-fc-rsa-private-key",
+    # NOTE: SSI v3 secrets (ssi-fc-api-key/secret/rsa-private-key) are managed
+    # OUT OF BAND via `gcloud secrets create ...` with `auto` replication. Adding
+    # them here would force destroy+recreate to user_managed replication, losing
+    # the values. Keep them out of this list; only add new secrets created with
+    # user_managed replication (matching this module's policy).
     # SSI FastConnect v2 (legacy, kept for now until callers verified clean)
     "ssi-fc-username",
     "ssi-fc-password",
@@ -26,5 +27,5 @@ variable "secret_names" {
     "research-app-username",
     "research-app-password",
   ]
-  description = "Secret IDs to provision (no values; populated out-of-band via `gcloud secrets versions add`)."
+  description = "Secret IDs to provision (no values; populated out-of-band via `gcloud secrets versions add`). Must match module's user_managed replication or pre-exist with it."
 }
