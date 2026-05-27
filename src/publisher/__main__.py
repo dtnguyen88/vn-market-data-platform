@@ -63,10 +63,14 @@ def _load_symbols(symbols_url: str) -> tuple[list[str], list[str]]:
 
 
 async def _stream_loop(cfg: Config) -> None:
+    log.info("stream-loop start: shard=%d project=%s", cfg.shard, cfg.project_id)
+    log.info("resolving secret: %s", cfg.ssi_api_key_secret)
     api_key = _resolve_secret(cfg.project_id, cfg.ssi_api_key_secret)
+    log.info("resolving secret: %s", cfg.ssi_api_secret_secret)
     api_secret = _resolve_secret(cfg.project_id, cfg.ssi_api_secret_secret)
+    log.info("resolving secret: %s", cfg.ssi_private_key_secret)
     private_key = _resolve_secret(cfg.project_id, cfg.ssi_private_key_secret)
-
+    log.info("loading symbols from %s", cfg.symbols_url)
     symbols, indices = _load_symbols(cfg.symbols_url)
     log.info("shard %d: %d symbols, %d indices", cfg.shard, len(symbols), len(indices))
 
@@ -194,7 +198,21 @@ async def main():
     cfg = Config.from_env()
 
     stream_task_ref: dict = {}
-    stream_task_ref["task"] = asyncio.create_task(_stream_loop(cfg))
+    task = asyncio.create_task(_stream_loop(cfg))
+
+    # Surface exceptions: asyncio swallows task errors silently unless awaited
+    # or a done-callback inspects them. Log on done so we get a traceback in
+    # Cloud Run logs instead of just an empty ERROR.
+    def _on_stream_done(t: asyncio.Task) -> None:
+        if t.cancelled():
+            log.warning("stream task cancelled")
+        elif t.exception():
+            log.exception("stream task crashed", exc_info=t.exception())
+        else:
+            log.warning("stream task exited cleanly (unexpected)")
+
+    task.add_done_callback(_on_stream_done)
+    stream_task_ref["task"] = task
 
     port = int(os.environ.get("PORT", "8080"))
     server = uvicorn.Server(

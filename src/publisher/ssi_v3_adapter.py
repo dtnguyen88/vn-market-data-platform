@@ -81,8 +81,34 @@ class V3StreamAdapter:
         ws_handlers[StreamingChannel.TRADING.value] = [self._on_trading_raw]
         ws_handlers[StreamingChannel.HEARTBEAT.value] = [self._on_heartbeat_raw]
 
-        # SSI WS rejects connections without browser-style User-Agent (returns 403).
-        self._stream.streaming._ws._headers["User-Agent"] = "Mozilla/5.0"
+        # api.ssi.com.vn is behind Cloudflare. CF Bot Management 403s any WS
+        # upgrade from datacenter IPs (Google Cloud, AWS, etc.) unless the
+        # request "looks browser-like" — i.e. carries the full set of Chrome
+        # client hints + Sec-Fetch-* headers. Bare `Mozilla/5.0` works from
+        # residential ISP IPs but fails from Cloud Run egress.
+        # Verified bypass: HTTP 101 from Cloud Run with this header set
+        # (Cloudflare CF-Ray captured; not from SSI's app layer).
+        self._stream.streaming._ws._headers.update(
+            {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/131.0.0.0 Safari/537.36"
+                ),
+                "Accept": "*/*",
+                "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
+                "Accept-Encoding": "gzip, deflate, br, zstd",
+                "Origin": "https://api.ssi.com.vn",
+                "Cache-Control": "no-cache",
+                "Pragma": "no-cache",
+                "sec-ch-ua": ('"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"'),
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"Windows"',
+                "Sec-Fetch-Dest": "websocket",
+                "Sec-Fetch-Mode": "websocket",
+                "Sec-Fetch-Site": "same-origin",
+            }
+        )
 
         await self._stream.streaming.connect()
         log.info("SSI v3 WS connected")
