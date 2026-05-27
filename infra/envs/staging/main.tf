@@ -791,12 +791,14 @@ module "wf_publisher_scaler" {
 }
 
 module "sched_publisher_market_open" {
-  source                = "../../modules/scheduler"
-  project_id            = var.project_id
-  location              = var.region
-  name                  = "publisher-market-open-cron"
-  description           = "08:55 ICT Mon-Fri — scale publisher shards up before HOSE opens."
-  schedule              = "55 8 * * 1-5"
+  source     = "../../modules/scheduler"
+  project_id = var.project_id
+  location   = var.region
+  name       = "publisher-market-open-cron"
+  # VN30 futures (HNX-DERIV) open 08:45 ICT, 15 min before HOSE equity at 09:00.
+  # Fire 5 min ahead at 08:40 so publishers are warm before futures start.
+  description           = "08:40 ICT Mon-Fri — scale publisher shards up before VN30F opens."
+  schedule              = "40 8 * * 1-5"
   target_workflow_id    = module.wf_publisher_scaler.id
   service_account_email = module.service_accounts.emails["workflows"]
   request_body          = jsonencode({ action = "start", target_env = "staging" })
@@ -1087,5 +1089,10 @@ module "research_app" {
   env_vars = {
     GCP_PROJECT_ID = var.project_id
     ENV            = "staging"
+    # APP_USERNAME / APP_PASSWORD are set out-of-band via `gcloud run services
+    # update --update-env-vars` so credentials aren't in source. Will be lost
+    # on next terraform apply unless migrated to a secret_key_ref env block.
+    # TODO: add cloud-run-service module support for env_var_from_secret and
+    # use module.secrets to provision research-app-username / -password.
   }
 }
