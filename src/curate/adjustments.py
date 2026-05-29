@@ -35,15 +35,6 @@ def _action_factor(
     return 1.0
 
 
-def _cumulative_factor(d, ex_dates: list, factors: list) -> float:
-    """Product of factors where ex_date > d."""
-    prod = 1.0
-    for ex, f in zip(ex_dates, factors, strict=False):
-        if ex > d:
-            prod *= f
-    return prod
-
-
 def apply_adjustments(
     daily_df: pl.DataFrame,
     corp_actions_df: pl.DataFrame,
@@ -88,26 +79,22 @@ def apply_adjustments(
         )
     ).select(["symbol", "ex_date", "factor"])
 
-    # For each daily row, multiply all factors whose ex_date > row date.
-    # Process per symbol; corp actions are sparse so this is manageable.
-    out_rows: list[pl.DataFrame] = []
-    for sym in daily_df["symbol"].unique().to_list():
-        sym_daily = daily_df.filter(pl.col("symbol") == sym)
-        sym_factors = factors.filter(pl.col("symbol") == sym)
+    # Vectorized cumulative product: join factors onto daily by symbol, keep
+    # only future actions (ex_date > date), then group_by(symbol,date).product().
+    # Sparse corp actions keep the intermediate join compact.
+    joined = daily_df.select(["symbol", "date"]).join(factors, on="symbol", how="left")
+    applicable = joined.filter(
+        pl.col("ex_date").is_not_null() & (pl.col("ex_date") > pl.col("date"))
+    )
+    factor_per_day = applicable.group_by(["symbol", "date"]).agg(
+        pl.col("factor").product().alias("factor_prod")
+    )
 
-        if sym_factors.height == 0:
-            sym_daily = sym_daily.with_columns(pl.col("close").cast(pl.Float64).alias("adj_close"))
-        else:
-            ex_dates = sym_factors["ex_date"].to_list()
-            facs = sym_factors["factor"].to_list()
-            sym_daily = sym_daily.with_columns(
-                adj_close=pl.col("date").map_elements(
-                    lambda d, eds=ex_dates, fs=facs: _cumulative_factor(d, eds, fs),
-                    return_dtype=pl.Float64,
-                )
-                * pl.col("close").cast(pl.Float64),
-            )
-
-        out_rows.append(sym_daily)
-
-    return pl.concat(out_rows).with_columns(pl.col("adj_close").cast(pl.Int64))
+    return (
+        daily_df.join(factor_per_day, on=["symbol", "date"], how="left")
+        .with_columns(pl.col("factor_prod").fill_null(1.0))
+        .with_columns(
+            adj_close=(pl.col("close").cast(pl.Float64) * pl.col("factor_prod")).cast(pl.Int64)
+        )
+        .drop("factor_prod")
+    )
