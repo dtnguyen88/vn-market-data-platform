@@ -621,10 +621,16 @@ module "curate_job" {
   service_account_email = module.service_accounts.emails["curate"]
   task_count            = 1
   parallelism           = 1
-  task_timeout          = "1800s" # 30 min
-  max_retries           = 3
-  memory                = "4Gi" # curate is memory-heavy (Polars in-memory ops)
-  cpu                   = "2"
+  # curate-daily-ohlcv re-scans the entire history (raw/daily-ohlcv/**) every run
+  # because backward-adjustment must propagate when new corp actions arrive.
+  # At ~3M rows across thousands of GCS parquets, the gcsfs read + dedup + sort
+  # alone exceeds 30 min; the adjustment is fast post-vectorization but the
+  # scan dominates. 2h ceiling gives headroom; incremental scan is tracked as
+  # a separate follow-up (see plans/.../curate-vectorize/ phase doc).
+  task_timeout = "7200s" # 2h
+  max_retries  = 3
+  memory       = "8Gi" # curate-daily-ohlcv holds ~3M-row history in memory
+  cpu          = "2"
   env_vars = {
     GCP_PROJECT_ID = var.project_id
     ENV            = "staging"
