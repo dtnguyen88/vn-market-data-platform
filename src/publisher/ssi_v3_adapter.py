@@ -16,6 +16,7 @@ separately via callbacks (see `set_*_callback`).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime
@@ -25,6 +26,14 @@ from ssi_sdk import AsyncAuth, AsyncStream, Config
 from ssi_sdk.enums import StreamingChannel
 
 log = logging.getLogger(__name__)
+
+
+class WSDisconnectedError(Exception):
+    """Raised by frames() when the underlying SDK WS listen task ends.
+    SSI bearer token TTL is 900s; the WS gets booted shortly after that and
+    the listen task exits silently. We surface it so the caller can reconnect
+    with a fresh token instead of blocking on queue.get() forever.
+    """
 
 
 class V3StreamAdapter:
@@ -52,6 +61,7 @@ class V3StreamAdapter:
         self._stream: AsyncStream | None = None
         self._heartbeat_cb: Callable[[dict], Any] | None = None
         self._trading_cb: Callable[[str, dict, datetime], Any] | None = None
+        self._listen_task: asyncio.Task | None = None
 
     def set_heartbeat_callback(self, cb: Callable[[dict], Any]) -> None:
         self._heartbeat_cb = cb
@@ -111,6 +121,9 @@ class V3StreamAdapter:
         )
 
         await self._stream.streaming.connect()
+        # Hold a ref to the SDK's read loop so frames() can detect a clean
+        # WS close (ConnectionClosed → listen task ends silently).
+        self._listen_task = self._stream.streaming._ws._listen_task
         log.info("SSI v3 WS connected")
 
         if self._symbols:
@@ -175,6 +188,23 @@ class V3StreamAdapter:
     # --- public consumer iface ---
 
     async def frames(self) -> AsyncIterator[tuple[str, dict, datetime]]:
-        """Yield (topic, data, ts_received) tuples forever."""
+        """Yield (topic, data, ts_received) tuples until WS disconnects.
+
+        Races queue.get() against the SDK's listen task. If the listen task
+        finishes first, the WS is gone — raise WSDisconnectedError so the caller
+        can rebuild auth+stream from scratch.
+        """
+        if self._listen_task is None:
+            raise RuntimeError("frames() called before __aenter__ connected")
         while True:
-            yield await self._queue.get()
+            get_task = asyncio.create_task(self._queue.get())
+            done, _ = await asyncio.wait(
+                {get_task, self._listen_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if self._listen_task in done:
+                get_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await get_task
+                raise WSDisconnectedError("SSI WS listen task ended")
+            yield get_task.result()

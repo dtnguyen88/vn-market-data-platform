@@ -32,7 +32,7 @@ from .parsers import (
     parse_tick,
 )
 from .pubsub_publisher import PubsubPublisher
-from .ssi_v3_adapter import V3StreamAdapter
+from .ssi_v3_adapter import V3StreamAdapter, WSDisconnectedError
 
 log = logging.getLogger(__name__)
 
@@ -98,21 +98,35 @@ async def _stream_loop(cfg: Config) -> None:
                     e,
                 )
 
-    async with V3StreamAdapter(
-        api_key=api_key,
-        api_secret=api_secret,
-        private_key=private_key,
-        symbols=symbols,
-        indices=indices,
-    ) as stream:
-        async for topic, data, ts in stream.frames():
-            try:
-                await _dispatch(topic, data, ts, _publish, storage_client, cfg)
-            except Exception as e:
-                log.warning("parse error on %s: %s", topic, e)
-                await asyncio.to_thread(
-                    _record_parse_error, storage_client, cfg, topic, data, ts, e
-                )
+    # SSI bearer JWT TTL = 900s. The WS gets disconnected shortly after
+    # token expiry and the SDK's listen task exits silently. V3StreamAdapter
+    # surfaces this as WSDisconnectedError; we rebuild auth+stream from scratch
+    # (fresh JWT) with exponential backoff capped at 60s.
+    backoff = 1.0
+    while True:
+        try:
+            async with V3StreamAdapter(
+                api_key=api_key,
+                api_secret=api_secret,
+                private_key=private_key,
+                symbols=symbols,
+                indices=indices,
+            ) as stream:
+                backoff = 1.0  # reset on successful connect
+                async for topic, data, ts in stream.frames():
+                    try:
+                        await _dispatch(topic, data, ts, _publish, storage_client, cfg)
+                    except Exception as e:
+                        log.warning("parse error on %s: %s", topic, e)
+                        await asyncio.to_thread(
+                            _record_parse_error, storage_client, cfg, topic, data, ts, e
+                        )
+        except WSDisconnectedError:
+            log.warning("WS disconnected; reconnecting in %.1fs", backoff)
+        except Exception:
+            log.exception("stream cycle crashed; reconnecting in %.1fs", backoff)
+        await asyncio.sleep(backoff)
+        backoff = min(backoff * 2, 60.0)
 
 
 async def _dispatch(topic, data, ts, publish_fn, storage_client, cfg) -> None:
