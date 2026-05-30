@@ -21,14 +21,19 @@ main:
         assign:
           - target_env: ${default(map.get(args, "target_env"), "staging")}
           - project_id: ${"vn-market-platform-" + target_env}
-          - sql: >
-              CREATE OR REPLACE TABLE
-                `${project_id}.vnmarket.daily_ohlcv_native`
+          # SQL has no project qualifier on the table refs — YAML `>`/`|` block
+          # scalars don't evaluate ${...} expressions, so the previous version
+          # leaked the literal characters `${project_id}` into BQ's parser and
+          # was rejected as an invalid project ID on every run since deploy.
+          # `projectId:` on the API call below tells BQ which project to use
+          # when resolving bare `dataset.table` references.
+          - sql: |-
+              CREATE OR REPLACE TABLE vnmarket.daily_ohlcv_native
               PARTITION BY date
               CLUSTER BY symbol
               AS SELECT date, symbol, asset_class, exchange,
                         open, high, low, close, volume, value
-              FROM `${project_id}.vnmarket.daily_ohlcv_external`
+              FROM vnmarket.daily_ohlcv_external
 
     - run_refresh:
         call: googleapis.bigquery.v2.jobs.query
