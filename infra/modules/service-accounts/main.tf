@@ -62,6 +62,7 @@ locals {
         "roles/bigquery.dataViewer",
         "roles/bigquery.jobUser",
         "roles/bigquery.readSessionUser",
+        "roles/secretmanager.secretAccessor", # APP_USERNAME / APP_PASSWORD env mounts
         "roles/logging.logWriter",
       ]
     }
